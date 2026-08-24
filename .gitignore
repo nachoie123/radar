@@ -1,0 +1,39 @@
+# La base lleva datos personales (el CV adaptado sale de aquí). `jobs.db-*` cubre
+# el -wal y el -shm de SQLite, pero NO los backups a mano (`jobs.db.bak3-...`),
+# que llevan exactamente lo mismo: de ahí el `jobs.db.*`.
+jobs.db
+jobs.db-*
+jobs.db.*
+config.json
+__pycache__/
+jobs.db.bak*
+*.bak-*
+
+# El log del servidor (agente com.nacho.radar): ruido local, cambia en cada
+# arranque y no dice nada que no diga el código.
+radar.log
+
+# El log del rellenador de anuncios (agente com.nacho.radardescr): mismo caso
+# que radar.log.
+descr.log
+
+# Tableros que probe.py encuentra vivos: salida local de un cron, distinta en
+# cada máquina. ingesta.py la lee si está, y funciona igual si no.
+descubiertos.json
+
+# El log de la ingesta nocturna (agente com.radar.ingesta), y la etiqueta real
+# del agente del servidor: la escribe instalar.command y es de esta máquina.
+ingesta.log
+.radar-label
+
+# Copias que instalar.command hace de un .plist anterior antes de pisarlo. Aquí
+# no llegarían nunca (viven en ~/Library/LaunchAgents), pero si alguien las trae
+# a mano llevan rutas de su casa dentro.
+*.plist.bak-*
+
+# Los dos planes internos (`FASE5B.md`: multiusuario y pago; `PUBLICAR.md`: qué
+# falta para publicar y por qué). En ESTA rama están rastreados —git ignora el
+# .gitignore para lo que ya sigue—; la línea está para que un `git add -A` en la
+# rama `publico`, que nace sin ellos, no los suba de vuelta.
+FASE5B.md
+PUBLICAR.md

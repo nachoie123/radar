@@ -1,0 +1,27 @@
+{
+  "_ayuda": {
+    "grad_year": "Tu año de graduación. Solo se descartan las ofertas cuyo TÍTULO exige graduarse antes.",
+    "solo_verano": "true = solo prácticas de verano. false = también off-cycle, working student, placement year.",
+    "solo_grado": "true = fuera lo que pide PhD, máster o MBA. Ponlo a false si ya tienes uno.",
+    "necesito_visado_us": "true = fuera lo que exige ciudadanía estadounidense. false si ya puedes trabajar en EE. UU.",
+    "regiones": "Dónde buscas. Válidas: es, pt, uk, ie, de, fr, it, pl, benelux, alpes, nordicos, europa, remoto, us, latam.",
+    "fuentes": "Qué se ingesta. Válidas: programas, spring, es, eu, banca, consultoria, github.",
+    "empresas_top": "Sustituye la lista de empresas destacadas. [] = usar la que trae Radar.",
+    "empresas_top_extra": "Se AÑADE a la lista de serie. Aquí van las tuyas.",
+    "github_solo_top": "true = de los tableros de GitHub (EE. UU., miles de ofertas) solo entran tus empresas top.",
+    "max_seconds": "Techo de reloj de la pasada entera, en segundos.",
+    "github_token": "Opcional. Un token de solo lectura sube el límite de la API de GitHub. Sin él también funciona."
+  },
+
+  "grad_year": 2030,
+  "solo_verano": true,
+  "solo_grado": true,
+  "necesito_visado_us": true,
+  "regiones": ["es", "pt", "uk", "ie", "de", "fr", "it", "pl", "benelux", "alpes", "nordicos", "europa", "remoto"],
+  "fuentes": ["programas", "spring", "es", "eu", "banca", "consultoria", "github"],
+  "empresas_top": [],
+  "empresas_top_extra": [],
+  "github_solo_top": true,
+  "max_seconds": 900,
+  "github_token": ""
+}

@@ -1,0 +1,828 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Radar · prácticas</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  /* Sistema de ui-ux-pro-max: patrón directorio, minimalismo de alto contraste,
+     azul profesional + verde de acento, densidad alta. Fuentes de Google con
+     caída a las del sistema: la app es local y tiene que verse sin internet. */
+  @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&family=Source+Sans+3:wght@400;600&display=swap');
+  :root {
+    --bg:#f0f9ff; --card:#fff; --fg:#0c4a6e; --dim:#47657a; --line:#bae6fd;
+    --muted:#e7eff5; --pri:#0369a1; --on-pri:#fff; --acc:#15803d; --warn:#b91c1c;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+    --ui:"Source Sans 3",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --head:"Lexend",var(--ui);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0b1620; --card:#10202c; --fg:#e6f1f8; --dim:#93aec2; --line:#1e3648;
+      --muted:#162937; --pri:#38bdf8; --on-pri:#04121b; --acc:#4ade80; --warn:#fca5a5;
+    }
+  }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 var(--ui); }
+  a { color:inherit }
+  button { font:inherit; cursor:pointer }
+  :focus-visible { outline:2px solid var(--pri); outline-offset:2px; border-radius:4px }
+
+  header { position:sticky; top:0; z-index:2; background:var(--bg);
+           border-bottom:1px solid var(--line); padding:var(--s5) var(--s5) var(--s3); }
+  .wrap { max-width:1100px; margin:0 auto }
+  h1 { margin:0 0 var(--s3); font:700 30px/1 var(--head); letter-spacing:-.04em }
+  h1 small { font:400 13px/1 var(--ui); color:var(--dim); margin-left:var(--s3);
+             letter-spacing:0 }
+  #q { width:100%; padding:11px var(--s4); font-size:16px; font-family:inherit;
+       border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--fg) }
+  #q::placeholder { color:var(--dim) }
+
+  /* overflow-x y nunca wrap: en un movil de 375px las seis pestanas no caben, y
+     sin esto las dos ultimas ("Spring weeks", "Mi CV") quedaban FUERA de la
+     pantalla y sin forma de llegar a ellas — el nav no rebosa hacia abajo, se
+     encoge y corta. Ahora se arrastran con el dedo. El scrollbar se esconde:
+     ocupaba una fila entera bajo los botones en el escritorio. */
+  nav { display:flex; gap:var(--s1); margin-bottom:var(--s3); overflow-x:auto;
+        scrollbar-width:none; -webkit-overflow-scrolling:touch }
+  nav::-webkit-scrollbar { display:none }
+  nav button { padding:9px var(--s4); min-height:44px; border:1px solid transparent;
+               border-radius:9px; background:none; color:var(--dim); font-weight:600;
+               white-space:nowrap; flex:0 0 auto;
+               transition:background .18s, color .18s }
+  nav button:hover { background:var(--card); color:var(--fg) }
+  nav button[aria-selected="true"] { background:var(--pri); color:var(--on-pri) }
+
+  .chips { display:flex; gap:var(--s1); flex-wrap:wrap; margin-top:var(--s3) }
+  .chips[hidden] { display:none }             /* display:flex gana al [hidden] del navegador */
+  .chips button { padding:5px var(--s3); min-height:32px; font-size:13px; font-weight:600;
+                 border:1px solid var(--line); border-radius:99px; background:var(--card);
+                 color:var(--dim); transition:background .18s, color .18s, border-color .18s }
+  .chips button:hover { color:var(--fg); border-color:var(--pri) }
+  .chips button[aria-pressed="true"] { background:var(--fg); border-color:var(--fg); color:var(--bg) }
+
+  main { max-width:1100px; margin:0 auto; padding:var(--s5) var(--s5) 80px; animation:in .2s ease-out }
+  @keyframes in { from { opacity:0; transform:translateY(6px) } }
+
+  /* ---- rejilla de empresas ---- */
+  .grid { display:grid; gap:var(--s2); grid-template-columns:repeat(auto-fill,minmax(210px,1fr)) }
+  .co { display:flex; justify-content:space-between; align-items:baseline; gap:var(--s2);
+        width:100%; text-align:left; padding:var(--s3) var(--s4); min-height:60px;
+        border:1px solid var(--line); border-radius:10px; background:var(--card);
+        color:var(--fg); transition:border-color .18s, transform .18s }
+  .co:hover { border-color:var(--pri); transform:translateY(-1px) }
+  .co .nm { font:600 15px/1.3 var(--head); letter-spacing:-.01em }
+  .co .cat { display:block; font-weight:400; font-size:12px; color:var(--dim); margin-top:2px }
+  .co .n { font:700 17px/1 var(--head); color:var(--acc) }
+  /* Sin becas hoy: borde discontinuo, no opacidad — bajarle la opacidad al
+     nombre lo dejaba en ~3.3:1 de contraste, por debajo del mínimo legible. */
+  .co.zero { background:none; border-style:dashed }
+  .co.zero .n { font:600 12px/1 var(--ui); color:var(--dim) }
+
+  /* ---- lista de ofertas ---- */
+  .job { display:flex; gap:var(--s4); align-items:baseline; padding:var(--s3) 0;
+         border-bottom:1px solid var(--line) }
+  .job b { flex:0 0 165px; font:600 15px/1.35 var(--head); letter-spacing:-.01em }
+  .job .role { flex:1; text-decoration:none }
+  .job a.role:hover span { text-decoration:underline; text-decoration-color:var(--pri) }
+  .job .meta { flex:0 0 auto; font-size:13px; color:var(--dim); white-space:nowrap }
+  /* La ciudad decide la mitad de las candidaturas (Madrid si, Chicago no) y
+     hasta ahora iba escondida al final del titulo, donde se perdia entre 90
+     caracteres de "Intern - Consulting - Technology Strategy and...". */
+  .job .loc { font-size:13px; color:var(--dim); white-space:nowrap; margin-left:var(--s2) }
+  .job .loc::before { content:"· " }
+  .tag { font-size:11px; font-weight:700; color:var(--warn); margin-left:var(--s2) }
+  .tag.vieja { color:var(--dim); font-weight:600 }   /* --dim es texto; --muted es FONDO */
+  /* Estado de la candidatura. 'nueva' no pinta nada: el ruido sería el 95% de la lista. */
+  .st { font-size:11px; font-weight:700; padding:1px 6px; border-radius:10px;
+        margin-left:var(--s2); white-space:nowrap; background:var(--muted); color:var(--dim) }
+  .st-preparada { color:var(--pri) }
+  .st-enviada { background:var(--pri); color:var(--on-pri) }
+  .st-respuesta { background:var(--acc); color:var(--on-pri) }
+  select.estado { font:inherit; font-size:13px; padding:var(--s2); border-radius:6px;
+                  border:1px solid var(--muted); background:var(--bg); color:var(--fg) }
+  .back { display:inline-block; margin-bottom:var(--s4); font-weight:600; color:var(--pri);
+          background:none; border:0; padding:var(--s2) 0 }
+  .co-head { display:flex; align-items:baseline; gap:var(--s4); flex-wrap:wrap;
+             margin-bottom:var(--s4) }
+  .co-head h2 { margin:0; font:700 26px/1.1 var(--head); letter-spacing:-.03em }
+  .co-head .cat { color:var(--dim); font-size:14px }
+  .web { display:inline-block; margin-top:var(--s2); padding:11px var(--s4); min-height:44px;
+         border:0; border-radius:9px; background:var(--pri); color:var(--on-pri); font-weight:600;
+         text-decoration:none }
+  .web.ghost { background:none; color:var(--pri); box-shadow:inset 0 0 0 1px var(--line) }
+  .web[disabled] { opacity:.65; cursor:default }
+  /* El dossier viene en markdown de night_apply; se enseña tal cual (son campos
+     de formulario, se leen igual) en vez de meter un parser. */
+  .dossier { white-space:pre-wrap; margin-top:var(--s4); padding:var(--s4);
+             border:1px solid var(--line); border-radius:10px; background:var(--card);
+             font:14px/1.6 var(--ui); overflow-x:auto }
+  .empty { color:var(--dim); padding:var(--s6) 0 }
+  /* ---- pestaña Hoy: bloques con cabecera ---- */
+  .sec { margin:0 0 var(--s6) }
+  .sec-head { display:flex; align-items:baseline; gap:var(--s3); flex-wrap:wrap;
+              margin-bottom:var(--s2); padding-bottom:var(--s2);
+              border-bottom:2px solid var(--line) }
+  .sec-head h2 { margin:0; font:700 20px/1.2 var(--head); letter-spacing:-.02em }
+  .sec-head .cat { color:var(--dim); font-size:13px }
+  .sec-head .n { margin-left:auto; font:700 15px/1 var(--head); color:var(--acc) }
+  .sec .empty { padding:var(--s4) 0; font-size:14px }
+  .sec .job:last-child { border-bottom:0 }
+  .visto { margin-left:auto; padding:5px var(--s3); min-height:32px; font-size:13px;
+           font-weight:600; border:1px solid var(--line); border-radius:99px;
+           background:var(--card); color:var(--dim) }
+  .visto:hover { color:var(--fg); border-color:var(--pri) }
+  /* Aviso de la pestaña Spring weeks: verde (--acc) para que se lea distinto del
+     resto de la app, que va en azul y sí es de verano. */
+  .nota { margin:0 0 var(--s4); padding:var(--s3) var(--s4); font-size:14px;
+          color:var(--dim); background:var(--card); border-radius:10px;
+          border:1px solid var(--line); border-left:3px solid var(--acc) }
+  .nota b { color:var(--fg) }
+  @media (prefers-reduced-motion: reduce) { *, main { animation:none !important; transition:none !important } }
+  @media (max-width:640px) {
+    header, main { padding-left:var(--s4); padding-right:var(--s4) }
+    .job { flex-wrap:wrap; gap:var(--s1) }
+    .job b { flex-basis:100% }
+    /* El "match 15.1" de la derecha le robaba un tercio del ancho al titulo y
+       lo partia en tres lineas. Abajo y a la izquierda no estorba a nada. */
+    .job .role { flex-basis:100% }
+    .job .meta { flex-basis:100%; margin-left:0 }
+    h1 { font-size:26px }
+    h1 small { display:block; margin:var(--s1) 0 0 }
+    /* Siete categorias apiladas se comian media pantalla de 812px antes de la
+       primera oferta: entrabas en "Ofertas" y lo primero que hacias era pasar
+       de largo los filtros. Una fila que se arrastra, igual que el nav. Sin
+       margenes negativos a proposito: el header ya va justo de ancho y lo que
+       no puede pasar es que la PAGINA acabe con scroll lateral. */
+    #cats { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
+            padding-bottom:2px }
+    #cats::-webkit-scrollbar { display:none }
+    #cats button { flex:0 0 auto }
+    .datos div { flex-direction:column; gap:2px }
+    .datos dt { flex:none }
+  }
+
+  /* Ficha de oferta: lo que la app ya sabía y no pintaba. Tabla de dos
+     columnas en escritorio; en el movil se apila, porque a 375px la columna de
+     etiquetas parte "Vista por ultima vez" en tres lineas y deja el dato
+     colgando a la derecha. */
+  .datos { margin:var(--s4) 0; padding:0; border:1px solid var(--line);
+           border-radius:12px; background:var(--card); overflow:hidden }
+  .datos div { display:flex; gap:var(--s3); padding:10px var(--s4);
+               font-size:14px; border-top:1px solid var(--line) }
+  .datos div:first-child { border-top:0 }
+  /* Tope en px además del %: a 1100 de ancho un 36% deja la etiqueta sola en
+     el borde izquierdo y el dato a media pantalla de distancia. */
+  .datos dt { flex:0 0 36%; max-width:220px; margin:0; color:var(--dim) }
+  .datos dd { flex:1; min-width:0; margin:0 }
+  .datos small { display:block; margin-top:var(--s1); color:var(--dim);
+                 font-size:13px; line-height:1.45 }
+  /* Palabras del CV que estan en la oferta. Fondo --muted (que es color de
+     FONDO, no de texto) para que se lean como etiquetas y no como avisos: los
+     avisos de esta pantalla van en .tag, con borde rojo. */
+  .kw { display:inline-block; padding:2px 9px; margin:0 var(--s1) var(--s1) 0;
+        font-size:13px; font-weight:600; border-radius:99px;
+        background:var(--muted); color:var(--fg) }
+
+  /* El texto del anuncio. Plegado de serie: la decisión de "¿esto me interesa?"
+     se toma con los primeros párrafos, y 12.000 caracteres empujando los
+     botones fuera de la pantalla convertirían la mejora en un estorbo. */
+  /* Pantalla de bienvenida de "Mi CV": la unica pantalla de Radar que le habla
+     a alguien que todavia no tiene nada dentro. */
+  .onboard { margin:0 0 var(--s5) }
+  .onboard h3 { margin:0 0 var(--s2); font:600 19px/1.25 var(--head) }
+  .onboard .pasos { margin:var(--s3) 0; padding-left:22px; color:var(--dim);
+                    font:15px/1.7 var(--ui) }
+  .onboard .pasos b { color:var(--fg) }
+  #prompt { margin:var(--s3) 0; padding:var(--s4); max-height:260px; overflow:auto;
+            white-space:pre-wrap; font:13px/1.6 ui-monospace,monospace;
+            background:var(--card); border:1px solid var(--line); border-radius:8px }
+  .anuncio { position:relative; margin:var(--s5) 0 }
+  .anuncio h3 { margin:0 0 var(--s3); font:600 15px/1.2 var(--head); color:var(--dim);
+                text-transform:uppercase; letter-spacing:.06em }
+  .anuncio pre { margin:0; padding:var(--s4); font:15px/1.6 var(--ui);
+                 white-space:pre-wrap; overflow-wrap:anywhere; color:var(--fg);
+                 background:var(--card); border:1px solid var(--line);
+                 border-radius:12px }
+  /* El texto se desvanece con una máscara sobre el propio <pre>, no con una capa
+     encima: la capa hay que colocarla a mano y tapaba el botón de desplegar.
+     Y al ser máscara no depende del color de fondo, así que vale igual en claro
+     y en oscuro. Sin desvanecer, el recorte parece que la oferta acaba ahí. */
+  .anuncio.corta pre { max-height:340px; overflow:hidden;
+     -webkit-mask-image:linear-gradient(#000 68%, transparent);
+     mask-image:linear-gradient(#000 68%, transparent) }
+  .anuncio .mas { margin-top:var(--s2) }
+  .anuncio .fuente { display:block; margin-top:var(--s2); font-size:13px; color:var(--dim) }
+
+  /* Banner de ingesta: la app no puede enseñar lo que nadie ha escrito, así que
+     al menos avisa de que el catálogo se ha quedado quieto. Va dentro del
+     header pegajoso, para que no se pierda al bajar. */
+  #salud { max-width:1100px; margin:0 auto var(--s3); display:none; flex-direction:column;
+           gap:var(--s1) }
+  #salud.hay { display:flex }
+  #salud p { margin:0; padding:9px var(--s4); border-radius:10px; font-size:14px;
+             background:var(--muted); border:1px solid var(--warn); color:var(--fg) }
+  #salud a { color:var(--pri); font-weight:600 }
+</style>
+
+<header>
+  <div class="wrap">
+    <h1>Radar <small id="count"></small></h1>
+    <nav id="tabs" role="tablist"></nav>
+    <input id="q" autocomplete="off">
+    <div id="cats" class="chips"></div>
+    <div id="solo" class="chips">
+      <button aria-pressed="false">☀️ Solo ofertas de verano</button>
+    </div>
+  </div>
+  <div id="salud" role="status"></div>
+</header>
+<main id="view"><p class="empty">Cargando…</p></main>
+
+<script>
+const $ = s => document.querySelector(s);
+const TABS = [["hoy", "Hoy"], ["empresas", "Empresas"], ["ofertas", "Ofertas"],
+              ["mine", "Para ti"], ["spring", "Spring weeks"], ["cv", "Mi CV"]];
+const HINT = { hoy: "",
+               empresas: "Filtrar empresas: goldman, deloitte, jane…",
+               ofertas: "quant finance madrid, software berlín, beca…",
+               mine: "Escribe para buscar (y salir de tu perfil)…",
+               spring: "Filtrar: jp morgan, londres, insight…",
+               cv: "" };
+// Las spring weeks no son de verano y viven solo en su pestaña: el servidor las
+// esconde del resto (app.py, INSIGHT_CAT). Aquí solo hace falta para quitar su
+// categoría de los chips, que filtran el listado general.
+const INSIGHT_CAT = "🌱 Spring weeks e insight programmes";
+// Texto fijo (no viene de los datos): la pestaña contradice el "solo verano" del
+// resto de la app y sin explicarlo no se entiende qué pinta aquí.
+const SPRING_NOTA = `<p class="nota">Una semana en Semana Santa, para 1º-2º de
+  carrera y sin experiencia previa. No son prácticas de verano, son la puerta de
+  entrada: buena parte de las plazas de summer internship de la banca salen de
+  quien hizo su spring week el año anterior. La primera oleada de convocatorias
+  abre en <b>septiembre</b> y la segunda en enero; casi ninguna tiene fecha
+  límite fija, cierran cuando se llenan las plazas.</p>`;
+let tab = "hoy", cat = "", empresas = [], detalle = null, oferta = null, solo = false;
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+}
+// Las URLs vienen de páginas scrapeadas: solo http(s) llega a un href, o un
+// `javascript:` en los datos se ejecutaría al hacer clic.
+const href = u => /^https?:\/\//i.test(u || "") ? esc(u) : "";
+
+// ---- rutas: el hash es el estado, así el botón "atrás" del navegador funciona.
+function readHash() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  detalle = h.startsWith("c/") ? h.slice(2) : null;   // ficha de empresa
+  oferta  = h.startsWith("o/") ? h.slice(2) : null;   // ficha de oferta
+  if (!detalle && !oferta && TABS.some(([id]) => id === h)) tab = h;
+}
+window.onhashchange = () => { readHash(); render(); };
+
+// La oferta lleva a su ficha (#o/id), no a la web de la empresa: el enlace
+// externo y el botón de preparar la solicitud están dentro.
+// Estados de una candidatura (mismo orden que db.STATES).
+const ESTADOS = { nueva: "Nueva", preparada: "Preparada", enviada: "Enviada", respuesta: "Respuesta" };
+const estadoHTML = s => s && s !== "nueva" && ESTADOS[s]
+  ? `<span class="st st-${s}">${ESTADOS[s]}</span>` : "";
+
+// Una oferta solo se refresca si la ingesta la vuelve a ver: `last_seen` sube
+// cada noche mientras siga publicada. Si deja de subir, o la oferta se cerró o
+// su fuente dejó de leerse — y la pantalla se veía IGUAL en los dos casos. Pasó
+// con el portal del IE, apagado el 16/08/2026: sus 169 ofertas se quedaron
+// congeladas el 13/08 sin que nada lo dijera. El aviso es por dato, no por
+// fuente: cualquier fuente que muera mañana se marca sola.
+const RANCIA_D = 3;            // el cron corre cada noche: 3 días son 3 fallos
+const diasDesde = iso => {
+  const t = Date.parse(iso);
+  return isNaN(t) ? null : Math.floor((Date.now() - t) / 864e5);
+};
+const ranciaHTML = j => {
+  const d = diasDesde(j.last_seen);
+  return d != null && d >= RANCIA_D
+    ? `<span class="tag vieja" title="La ingesta no la ve desde hace ${d} días: puede estar cerrada">sin refrescar ${d}d</span>`
+    : "";
+};
+
+// meta=false quita la columna de la derecha: en Spring weeks el tablero es el
+// mismo en las 11 filas y solo repite ruido.
+// metaTxt sustituye lo de la derecha: en "En curso" interesa cuándo la moviste,
+// no de qué tablero salió.
+// La ubicacion venia PEGADA al final del titulo (db._loc la saca justo de ahi:
+// "Compliance Intern · London"). Repetirla en su columna seria decir Londres dos
+// veces, asi que se le quita al titulo la cola que ya es la ciudad.
+function sinCola(role, loc) {
+  const cola = " · " + (loc || "");
+  return loc && role.endsWith(cola) ? role.slice(0, -cola.length) : role;
+}
+
+// Lo que trae la columna de la derecha cuando no se le dice otra cosa: las
+// palabras del CV que están en la oferta. Antes era "match 23.8" —el bm25 en
+// crudo: relativo a la query, sin unidad y sin tope— y no se podía leer. El
+// tablero deja de salir aquí en las ofertas que casan, pero no se pierde: la
+// ficha lo enseña en su fila "Fuente".
+const metaCV = j => j.hits && j.hits.length
+  ? "coincide: " + esc(j.hits.slice(0, 3).join(" · "))
+  // Desde que el indice lee el anuncio, una oferta puede salir en "Para ti" sin
+  // que ninguna palabra tuya este en el titulo. Decirlo aqui evita que se lea
+  // como "no casa": casa, pero en el cuerpo. Cuales son, en la ficha.
+  : j.anuncio ? "coincide en el anuncio" : esc(j.board);
+
+function jobHTML(j, showCompany = true, meta = true, metaTxt = null) {
+  return `<article class="job">
+    ${showCompany ? `<b>${esc(j.company)}</b>` : ""}
+    <a class="role" href="#o/${j.id}"><span>${esc(sinCola(j.role, j.loc))}</span>${
+      j.loc ? `<span class="loc">${esc(j.loc)}</span>` : ""}${
+      j.nospon ? '<span class="tag">sin sponsor</span>' : ""}${ranciaHTML(j)}${estadoHTML(j.status)}</a>
+    ${showCompany && meta ? `<span class="meta">${metaTxt != null ? esc(metaTxt)
+        : metaCV(j)}</span>` : ""}
+  </article>`;
+}
+
+// Avisos de la ingesta (los calcula app.py: salud()). Sin avisos el banner no
+// existe; con ellos ocupa sitio a propósito — es el único aviso de que lo que
+// se ve en pantalla puede llevar días parado.
+function pintaSalud(s) {
+  const box = $("#salud");
+  const avisos = (s && s.avisos) || [];
+  box.classList.toggle("hay", avisos.length > 0);
+  // href() y no esc(): mismo criterio que las URLs scrapeadas — al href solo
+  // llega http(s), nunca un javascript:.
+  box.innerHTML = avisos.map(a => `<p>⚠️ ${esc(a.txt)}${href(a.url)
+    ? ` <a href="${href(a.url)}" target="_blank" rel="noopener">Abrir el portal →</a>` : ""}</p>`).join("");
+}
+
+async function render() {
+  $("#tabs").innerHTML = TABS.map(([id, l]) =>
+    `<button role="tab" data-t="${id}" aria-selected="${!detalle && !oferta && id === tab}">${l}</button>`).join("");
+  // El nav se repinta entero en cada render y con el scroll se va a cero: en el
+  // movil eso dejaba la pestana recien pulsada FUERA de la vista, como si el
+  // toque no hubiera hecho nada. En escritorio no hay scroll y no hace nada.
+  // A mano y no con scrollIntoView: ese tambien mueve el scroll VERTICAL de la
+  // pagina —con el header pegajoso te dejaba la lista empezada por la mitad— y
+  // aqui solo hay que mover el nav de lado.
+  const nav = $("#tabs"), sel = nav.querySelector('[aria-selected="true"]');
+  // Por rectangulos y no por offsetLeft: el header es position:sticky, o sea que
+  // es EL offsetParent, y offsetLeft venia medido desde el header —con su padding
+  // dentro— en vez de desde el nav. Salia un scroll de 16px en escritorio, donde
+  // las seis pestanas caben de sobra y no habia nada que desplazar.
+  if (sel) {
+    const n = nav.getBoundingClientRect(), b = sel.getBoundingClientRect();
+    if (b.right > n.right) nav.scrollLeft += b.right - n.right;
+    else if (b.left < n.left) nav.scrollLeft -= n.left - b.left;
+  }
+  $("#q").placeholder = HINT[tab];
+  // En la ficha no filtra nada, y en Mi CV no hay nada que buscar.
+  $("#q").hidden = !!(detalle || oferta) || tab === "cv" || tab === "hoy";
+  // Los chips sobran en Spring weeks: todo lo que hay ahí es una sola categoría.
+  $("#cats").hidden = !!(detalle || oferta) || tab === "spring" || tab === "cv"
+    || tab === "hoy";
+  // "Solo verano" mira el título de la OFERTA; en la rejilla de empresas no
+  // tiene nada que filtrar (los recuentos son de todas sus becas) y en Spring
+  // weeks vaciaría la lista, que por definición no es de verano.
+  $("#solo").hidden = !!(detalle || oferta) || tab === "empresas"
+    || tab === "spring" || tab === "cv" || tab === "hoy";
+
+  if (oferta) return renderJob(oferta);
+  if (detalle) return renderCompany(detalle);
+  if (tab === "cv") return renderCV();
+  if (tab === "hoy") return renderHoy();
+
+  const text = $("#q").value.trim();
+  if (tab === "empresas") {
+    // Filtrado en el navegador: son 80 empresas ya cargadas, no hace falta ir al servidor.
+    const list = empresas.filter(c => (!cat || c.category === cat)
+      && c.company.toLowerCase().includes(text.toLowerCase()));
+    $("#count").textContent = `${list.length} empresas · ${list.reduce((a, c) => a + c.n, 0)} becas abiertas`;
+    $("#view").innerHTML = list.length ? `<div class="grid">` + list.map(c =>
+      `<button class="co ${c.n ? "" : "zero"}" data-c="${esc(c.company)}">
+         <span class="nm">${esc(c.company)}<span class="cat">${esc(c.category)}</span></span>
+         <span class="n">${c.n || "ver web"}</span>
+       </button>`).join("") + `</div>` : '<p class="empty">Ninguna empresa con ese nombre.</p>';
+    return;
+  }
+  // "Para ti" ordena por solape con el CV; al teclear cede el paso a la búsqueda
+  // normal (una palabra tuya contra las ~90 del CV no movería el ranking).
+  const mine = tab === "mine" && !text;
+  const spring = tab === "spring";
+  const d = await (await fetch(`/api/jobs?q=${encodeURIComponent(text)}`
+    + `&cat=${encodeURIComponent(spring ? "" : cat)}${mine ? "&mine=1" : ""}`
+    + `${solo ? "&summer=1" : ""}${spring ? "&insight=1" : ""}`)).json();
+  pintaSalud(d.salud);
+  $("#count").textContent = spring
+    ? `${d.jobs.length} spring weeks e insight programmes`
+    // "189 de 490" con el chip "Todas" puesto parecia un filtro escondiendo 301.
+    // Con d.truncado el texto dice de que se trata: es el tope de la consulta.
+    : `${d.truncado ? "primeras " : ""}${d.jobs.length} de ${d.total} ofertas${
+        solo ? " · solo verano" : ""}`;
+  $("#view").innerHTML = d.jobs.length
+    ? (spring ? SPRING_NOTA : "") + d.jobs.map(j => jobHTML(j, true, !spring)).join("")
+    : `<p class="empty">${spring ? "Ninguna spring week con esa búsqueda."
+        : solo ? "Ninguna oferta de verano con ese filtro. Los programas de verano se abren de enero a marzo."
+               : "Nada con esa búsqueda."}</p>`;
+}
+
+// ---- Hoy: la pantalla de entrada -------------------------------------------
+// Responde a las dos preguntas con las que se abre la app por la mañana: qué ha
+// entrado nuevo desde la última vez, y qué tengo a medias. El resto de pestañas
+// son para buscar; esta es para no tener que buscar.
+const fechaCorta = iso => {
+  const t = new Date(iso);
+  if (isNaN(t)) return "";
+  const d = Math.floor((Date.now() - t) / 864e5);
+  if (d <= 0) return "hoy";
+  if (d === 1) return "ayer";
+  if (d < 7) return `hace ${d} días`;
+  return t.toLocaleDateString("es", { day: "numeric", month: "short" });
+};
+
+// Bloque con cabecera. `extra` es el HTML que va a la derecha del título
+// (el contador, o el botón de marcar como vistas).
+const seccion = (titulo, sub, jobs, vacio, extra = "", metaFn = null) => `<section class="sec">
+  <div class="sec-head"><h2>${titulo}</h2>
+    ${sub ? `<span class="cat">${sub}</span>` : ""}${extra}</div>
+  ${jobs.length ? jobs.map(j => jobHTML(j, true, true, metaFn ? metaFn(j) : null)).join("")
+                : `<p class="empty">${vacio}</p>`}
+</section>`;
+
+async function renderHoy() {
+  const d = await (await fetch("/api/hoy")).json();
+  pintaSalud(d.salud);
+  $("#count").textContent = `${d.total} ofertas · catálogo de ${fechaCorta(d.salud.hasta)}`;
+  const desde = d.marcado ? `desde tu última visita (${fechaCorta(d.desde)})`
+                          : `de los últimos 3 días`;
+  $("#view").innerHTML =
+    seccion("Nuevas", desde, d.nuevas,
+            "Nada nuevo desde entonces. La ingesta corre cada noche a las 02:30.",
+            d.nuevas.length ? `<button class="visto" id="marcavisto">Marcar como vistas</button>`
+                            : `<span class="n">0</span>`)
+    + seccion("En curso", "candidaturas que has movido", d.curso,
+              "Ninguna todavía. El estado se cambia dentro de la ficha de una oferta.",
+              d.curso.length ? `<span class="n">${d.curso.length}</span>` : "",
+              j => fechaCorta(j.updated_at))
+    + (d.sugeridas.length ? seccion("Tu lista corta", "lo que más encaja con tu CV y aún no has tocado",
+                                    d.sugeridas, "") : "");
+  const b = $("#marcavisto");
+  if (b) b.onclick = async () => {
+    b.disabled = true; b.textContent = "Marcando…";
+    await fetch("/api/visto", { method: "POST", body: "{}" });
+    render();                              // vuelve a pintar: "Nuevas" queda a 0
+  };
+}
+
+// Copiar un <pre id="prompt"> al portapapeles, con plan B. navigator.clipboard
+// no siempre está (hace falta contexto seguro, y localhost lo es, pero un Radar
+// abierto por la tailnet en http no): entonces se selecciona el bloque y se dice
+// que copie a mano, que es mejor que un botón que no hace nada. Lo comparten la
+// bienvenida de "Mi CV" y "Preparar mi solicitud": el mismo gesto dos veces.
+async function copiaPrompt(txt, ok) {
+  try {
+    await navigator.clipboard.writeText(txt || "");
+    return ok;
+  } catch (err) {
+    const r = document.createRange(); r.selectNode($("#prompt"));
+    getSelection().removeAllRanges(); getSelection().addRange(r);
+    return "Seleccionado: copia con Cmd+C.";
+  }
+}
+
+// El CV vive en la base, no en el disco: esta pestaña es la única forma de
+// ponerlo. Alimenta dos cosas — el orden de "Para ti" y el CV que se adapta al
+// pulsar Preparar mi solicitud.
+//
+// Y es el unico paso de instalacion que Radar no puede hacer solo: el CV lo
+// tiene la persona. Por eso, cuando esta vacio, la pestaña deja de ser un cuadro
+// de texto sin instrucciones y pasa a explicar los tres pasos, con el prompt
+// listo para copiar. Sin esto, quien instale Radar de cero se encuentra "Para
+// ti" desordenado para siempre y sin nada que le diga por que.
+async function renderCV(aviso) {
+  const d = await (await fetch("/api/profile")).json();
+  $("#count").textContent = d.n ? `${d.n.toLocaleString("es")} caracteres` : "sin CV";
+  const vacio = !d.n;
+  $("#view").innerHTML = `
+    ${vacio ? `
+    <div class="onboard">
+      <h3>Radar todavía no sabe nada de ti</h3>
+      <p class="nota">Con tu CV puesto, la pestaña <b>Para ti</b> ordena las
+        ofertas por lo que encaja contigo, cada oferta te dice qué palabras
+        tuyas trae, y <b>Preparar mi solicitud</b> puede adaptarlo a la oferta
+        concreta.</p>
+      <ol class="pasos">
+        <li>Copia este prompt.</li>
+        <li>Pégalo en Claude (o en el chat que uses) <b>con tu CV detrás</b>:
+          vale el PDF, el texto pegado o el enlace de LinkedIn copiado a mano.</li>
+        <li>Pega aquí lo que te devuelva. Se guarda solo.</li>
+      </ol>
+      <pre id="prompt"></pre>
+      <p><button class="web" id="copiar">Copiar el prompt</button>
+         <span id="copimsg" class="cat"></span></p>
+      <p class="nota">¿Prefieres ir por lo rápido? Pega tu CV tal cual: funciona,
+        pero ordena peor. Lo que afina el orden son los apartados
+        <code>## SKILLS</code> e <code>## INTERESTS</code>, que es justo lo que
+        el prompt le pide a Claude.</p>
+    </div>` : `
+    <p class="nota">Este es el CV que usa Radar para ordenar <b>Para ti</b> y el
+      que se adapta a cada oferta cuando pulsas <b>Preparar mi solicitud</b>.
+      Edítalo y guarda cuando quieras. <a href="#" id="verprompt">¿Rehacerlo con
+      otro CV?</a></p>
+    <pre id="prompt" hidden></pre>`}
+    <textarea id="cvbox" rows="${vacio ? 12 : 22}" spellcheck="false"
+      placeholder="${vacio ? "Pega aquí lo que te devuelva Claude…" : ""}"
+      style="width:100%;font:13px/1.5 ui-monospace,monospace;padding:var(--s2);
+             border:1px solid var(--line);border-radius:8px;background:var(--card);
+             color:var(--fg);resize:vertical"></textarea>
+    <p><button class="web" id="cvsave">Guardar</button>
+       <span id="cvmsg" class="cat"></span></p>`;
+  // Por textContent y no en la plantilla: el prompt lleva ## y comillas, y
+  // meterlo en el HTML sin escapar es la via clasica de romper la pagina.
+  $("#prompt").textContent = d.prompt || "";
+  $("#cvbox").value = d.cv || "";            // por value, no en el HTML: no se escapa
+
+  const guardar = async (aviso) => {
+    $("#cvmsg").textContent = aviso;
+    try {
+      const r = await (await fetch("/api/profile", { method: "POST",
+        body: JSON.stringify({ cv: $("#cvbox").value }) })).json();
+      $("#cvmsg").textContent = r.n ? `Guardado · ${r.n.toLocaleString("es")} caracteres`
+                                    : "Guardado · CV vacío";
+      $("#count").textContent = r.n ? `${r.n.toLocaleString("es")} caracteres` : "sin CV";
+      return r.n;
+    } catch (err) {
+      $("#cvmsg").textContent = "No se pudo guardar: " + err;
+      return null;
+    }
+  };
+  $("#cvsave").onclick = async e => {
+    e.target.disabled = true;
+    await guardar("Guardando…");
+    e.target.disabled = false;
+  };
+  // Pegar y que no pase nada es como se pierde un CV: la persona cambia de
+  // pestaña convencida de que ya esta. Se guarda SOLO cuando no habia nada —
+  // sobrescribir sin preguntar un CV que ya existe es otra cosa, y para eso
+  // esta el boton.
+  if (vacio) $("#cvbox").addEventListener("paste", () => setTimeout(async () => {
+    if (!$("#cvbox").value.trim()) return;
+    const n = await guardar("Guardando lo que has pegado…");
+    if (n) {                                 // ya hay CV: la pestaña cambia de cara
+      $("#cvmsg").textContent = `Guardado · ${n.toLocaleString("es")} caracteres`;
+      setTimeout(() => renderCV("Guardado. Ya puedes ir a «Para ti»."), 1200);
+    }
+  }, 0));
+  if ($("#copiar")) $("#copiar").onclick = async () => {
+    $("#copimsg").textContent =
+      await copiaPrompt(d.prompt, "Copiado. Pégalo en Claude con tu CV detrás.");
+  };
+  if ($("#verprompt")) $("#verprompt").onclick = e => {
+    e.preventDefault(); $("#prompt").hidden = !$("#prompt").hidden;
+  };
+  // Se repinta al guardar por primera vez, y sin esto el "Guardado" se lo lleva
+  // el repintado por delante: la pantalla cambia de cara y no dice por que.
+  if (aviso) $("#cvmsg").textContent = aviso;
+}
+
+async function renderCompany(name) {
+  const c = empresas.find(x => x.company === name) || { company: name, n: 0, category: "" };
+  const d = await (await fetch(`/api/jobs?company=${encodeURIComponent(name)}`)).json();
+  pintaSalud(d.salud);
+  $("#count").textContent = `${d.jobs.length} becas abiertas`;
+  $("#view").innerHTML = `<button class="back">← Empresas</button>
+    <div class="co-head"><h2>${esc(c.company)}</h2><span class="cat">${esc(c.category)}</span></div>`
+    + (d.jobs.length ? d.jobs.map(j => jobHTML(j, false)).join("")
+       : `<p class="empty">Sin becas abiertas ahora mismo. Se vigila cada noche.</p>`)
+    + (href(c.link) ? `<a class="web" href="${href(c.link)}" target="_blank" rel="noopener">Ver sus prácticas en su web →</a>` : "");
+  $(".back").onclick = () => history.back();
+}
+
+// El encaje sale del MISMO orden que ordena "Para ti", contado en algo legible:
+// que palabras tuyas estan en la oferta y en que puesto queda de las que casan.
+//
+// Y se ensena en dos filas porque el ranking tambien las trata distinto: las del
+// TITULO (que es lo que el puesto es) mandan, y las del ANUNCIO vienen detras.
+// Juntarlas en una sola lista diria que una beca de marketing cuyo anuncio
+// menciona Python encaja igual que una de datos, y no es verdad.
+function encajeHTML(e) {
+  if (!e) return "";
+  if (!e.terminos.length && !e.anuncio.length && e.puesto == null) {
+    return `<small>Ninguna palabra de tu CV esta en el titulo, en el nombre de la
+      empresa ni en el texto del anuncio: por eso no sale en «Para ti». Si arriba
+      pone que el anuncio no se ha podido leer, es eso y no el puesto.</small>`;
+  }
+  const fila = (ts, txt) => ts.length
+    ? `<div>${ts.map(t => `<span class="kw">${esc(t)}</span>`).join("")}<small>${txt}</small></div>` : "";
+  return fila(e.terminos, "en el titulo")
+    + fila(e.anuncio, "en el texto del anuncio")
+    + (e.puesto ? `<small>La n\u00ba ${e.puesto} de las ${e.total} ofertas que casan con
+        tu CV.</small>` : "");
+}
+
+// El texto del anuncio, tal cual lo publica la fuente y pasado a texto plano por
+// descr.py. Sin markdown ni parser: <pre> con white-space:pre-wrap respeta los
+// saltos y las viñetas que ya trae el texto, y escapado es lo único que se puede
+// pintar sin miedo — esto viene de webs ajenas.
+//
+// Cuando no hay texto se dice por qué en vez de dejar el hueco: hay ofertas que
+// no se van a poder leer nunca (amazon.jobs se pinta con JavaScript) y el aviso
+// es lo que hace que "Ver la oferta →" deje de ser un salto a ciegas.
+// `d` es lo que devuelve db.descr(): las columnas tal cual (descr, descr_via,
+// descr_at), sin renombrar por el camino.
+function anuncioHTML(d) {
+  const t = (d && d.descr || "").trim();
+  if (!t) {
+    // "Todavía no" y "no se ha podido" son cosas distintas y la diferencia
+    // importa: la primera se arregla sola esta noche.
+    const cuerpo = d && d.curada
+      ? `Esto no es una oferta concreta sino la convocatoria de la empresa, que se
+         mantiene a mano: lo que se sabe de ella está en el título. Su web dice
+         cuándo abre el plazo.`
+      : !d || !d.descr_at
+      ? `El texto de esta oferta todavía no se ha leído; la próxima pasada de la
+         ingesta lo intenta. Mientras tanto, ábrela en su web.`
+      : `De esta oferta no se ha podido leer el texto (${esc(d.descr_via || "sin motivo")}).
+         Ábrela en su web para ver de qué va.`;
+    return `<div class="anuncio"><h3>El anuncio</h3><p class="empty">${cuerpo}</p></div>`;
+  }
+  return `<div class="anuncio corta">
+    <h3>El anuncio</h3>
+    <pre>${esc(t)}</pre>
+    <button class="web ghost mas">Leer entera</button>
+    <span class="fuente">Texto leído de la fuente · ${esc(fechaCorta(d.descr_at))}</span>
+  </div>`;
+}
+
+// La ficha tenía 215 caracteres —título, dos botones y un selector— y dos
+// tercios de pantalla en blanco. Para juzgar si un puesto interesaba había que
+// salir a la web de la empresa (y ya estabas fuera de Radar) o gastar 1-2 min en
+// "Preparar mi solicitud" adaptando el CV a algo que todavía no sabías si
+// querías. Nada de lo que se pinta aquí es un dato nuevo: ya estaba en la base.
+const filaHTML = (dt, dd) => `<div><dt>${dt}</dt><dd>${dd}</dd></div>`;
+
+function datosHTML(j, enc) {
+  let f = "";
+  // first_seen es cuándo la vio RADAR, no cuándo la publicó la empresa: eso no
+  // lo trae ninguna fuente, así que la etiqueta no lo promete. Con fechaCorta y
+  // no con una fecha ISO: "hace 4 días" es lo que decide si sigue viva, y es el
+  // mismo vocabulario que ya usa la pestaña Hoy.
+  if (j.first_seen) f += filaHTML("En Radar desde", esc(fechaCorta(j.first_seen)));
+  if (j.last_seen) f += filaHTML("Vista por última vez", esc(fechaCorta(j.last_seen)));
+  if (j.board) f += filaHTML("Fuente", esc(j.board));
+  if (enc) f += filaHTML("Encaje con tu CV", encajeHTML(enc));
+  return f ? `<dl class="datos">${f}</dl>` : "";
+}
+
+async function renderJob(id) {
+  const d = await (await fetch("/api/jobs?id=" + encodeURIComponent(id))).json();
+  pintaSalud(d.salud);
+  const j = d.jobs[0];
+  if (!j) { $("#view").innerHTML = '<p class="empty">Esa oferta ya no está.</p>'; return; }
+  const link = href(j.url);
+  // El tablero pasa a la tabla de datos, donde se encuentra; repetirlo aquí
+  // dejaba el mismo texto dos veces a dos centímetros de distancia.
+  $("#count").textContent = "";
+  $("#view").innerHTML = `<button class="back">← Volver</button>
+    <div class="co-head">
+      <h2>${esc(sinCola(j.role, j.loc))}</h2>
+      <span class="cat">${esc(j.company)}${j.loc ? " · " + esc(j.loc) : ""} · ${esc(j.category)}</span>
+    </div>
+    ${j.nospon ? '<p class="tag">La empresa no patrocina visado</p>' : ""}
+    ${(() => { const dias = diasDesde(j.last_seen); return dias != null && dias >= RANCIA_D
+      ? `<p class="tag vieja">La ingesta no ve esta oferta desde hace ${dias} días: compruébala en la web antes de prepararla.</p>` : ""; })()}
+    ${datosHTML(j, d.encaje)}
+    <p>${link ? `<a class="web ghost" href="${link}" target="_blank" rel="noopener">Ver la oferta →</a> ` : ""}
+       <button class="web apply">Preparar mi solicitud</button></p>
+    <p><label>Estado: <select class="estado">${
+      Object.entries(ESTADOS).map(([v, l]) =>
+        `<option value="${v}"${(j.status || "nueva") === v ? " selected" : ""}>${l}</option>`).join("")
+    }</select></label></p>
+    ${anuncioHTML(d.descr)}
+    <div id="dossier"></div>`;
+  $(".back").onclick = () => history.back();
+  // Desplegar es de ida: quien ha pedido leerla entera no quiere volver a
+  // plegarla, y un botón que cambia de texto ahí solo confunde.
+  const caja = $(".anuncio"), mas = $(".anuncio .mas"), pre = $(".anuncio pre");
+  // Si la oferta cabe entera no hay nada que desplegar: fuera el degradado y
+  // fuera el botón, que si no promete texto que no existe.
+  if (mas && pre && pre.scrollHeight <= pre.clientHeight + 4) {
+    caja.classList.remove("corta");
+    mas.remove();
+  } else if (mas) {
+    // Desplegar es de ida: quien ha pedido leerla entera no quiere volver a
+    // plegarla, y un botón que cambia de texto ahí solo confunde.
+    mas.onclick = () => { caja.classList.remove("corta"); mas.remove(); };
+  }
+  $(".apply").onclick = e => apply(j.id, e.currentTarget, d.aplicar);
+  $(".estado").onchange = e => setEstado(j.id, e.currentTarget.value);
+}
+
+// El estado se guarda en jobs.status. Si el POST falla se avisa en vez de dejar
+// el <select> mintiendo sobre lo que hay en la base.
+// Un fetch que no llega al servidor tira "TypeError: Failed to fetch", que no
+// dice nada. Y en Radar la causa es casi siempre la misma: el servidor está
+// parado (un `launchctl bootout`, o el Mac recién arrancado). Se traduce.
+const CAIDO = "Radar no responde: el servidor está parado. Ábrelo con Radar.command "
+            + "o enciéndelo con: launchctl bootstrap gui/$(id -u) "
+            + "~/Library/LaunchAgents/com.nacho.radar.plist";
+const errTxt = err => /Failed to fetch|NetworkError|Load failed/i.test(String(err))
+  ? CAIDO : String(err);
+
+async function setEstado(id, status) {
+  let d;
+  try {
+    d = await (await fetch("/api/status", {
+      method: "POST", body: JSON.stringify({ id, status })
+    })).json();
+  } catch (err) {
+    d = { error: errTxt(err) };
+  }
+  if (d.error) alert("No he podido guardar el estado: " + d.error);
+}
+
+// Preparar mi solicitud. El servidor tiene dos caminos y dice cuál por
+// `aplicar` (app.modo_aplicar), que llega con la ficha:
+//   local  → night-apply adapta el CV aquí mismo y devuelve PDF + dossier.
+//            Tarda 1-2 min la primera vez; después ya está en disco.
+//   prompt → devuelve el prompt con el anuncio y el CV dentro, al instante.
+// El modo se sabe ANTES de pulsar a propósito: si el botón dijera "1-2 min" en
+// el camino instantáneo, o callara la espera en el lento, mentiría en un sitio
+// u otro. Y en el camino del prompt el estado NO sube solo: copiar un texto no
+// es haber preparado la solicitud (ver el POST de /api/apply).
+async function apply(id, btn, modo) {
+  btn.disabled = true;
+  btn.textContent = modo === "prompt" ? "Montando el prompt…" : "Preparando… (1-2 min)";
+  let d;
+  try {
+    d = await (await fetch("/api/apply", { method: "POST", body: JSON.stringify({ id }) })).json();
+  } catch (err) {
+    d = { error: errTxt(err) };
+  }
+  if (d.prompt) {
+    btn.textContent = "Prompt listo, abajo ↓";
+    $("#dossier").innerHTML = `<div class="onboard">
+      <h3>Tu solicitud, en un prompt</h3>
+      <ol class="pasos">
+        <li>Copia el prompt: lleva dentro <b>el anuncio y tu CV</b>.</li>
+        <li>Pégalo en Claude. Te devuelve el CV adaptado a esta oferta, lo que
+          te falta para el puesto y la carta de motivación.</li>
+        <li>Cuando la envíes, cámbiale el estado aquí arriba.</li>
+      </ol>
+      <pre id="prompt"></pre>
+      <p><button class="web" id="copiar">Copiar el prompt</button>
+         <span id="copimsg" class="cat"></span></p>
+    </div>`;
+    // Por textContent: el prompt lleva ## y comillas, y el anuncio viene de la
+    // web de una empresa. Meterlo en el HTML sin escapar es la vía clásica.
+    $("#prompt").textContent = d.prompt;
+    $("#copiar").onclick = async () => {
+      $("#copimsg").textContent = await copiaPrompt(d.prompt, "Copiado. Pégalo en Claude.");
+    };
+    return;
+  }
+  btn.disabled = !d.error;
+  btn.textContent = d.error ? "Reintentar" : "Solicitud preparada ✓";
+  // El servidor ya la ha marcado 'preparada': que el selector no diga otra cosa.
+  if (d.status && $(".estado")) $(".estado").value = d.status;
+  $("#dossier").innerHTML = d.error
+    ? `<p class="empty">No he podido prepararla: ${esc(d.error)}</p>`
+    : (d.pdf ? `<a class="web" href="/cv/${encodeURIComponent(d.pdf)}" target="_blank" rel="noopener">CV adaptado (PDF) ↓</a>` : "")
+      // Los **negritas** del markdown, y nada más: escapado primero, así que
+      // los <b> son los nuestros. Un parser entero no compensa aquí.
+      + `<div class="dossier">${esc(d.dossier).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")}</div>`;
+}
+
+$("#tabs").onclick = e => {
+  const t = e.target.closest("button"); if (!t) return;
+  tab = t.dataset.t; $("#q").value = "";
+  // Cambiar el hash dispara el render; si ya era ese hash no salta el evento.
+  if (location.hash === "#" + tab) render(); else location.hash = tab;
+};
+$("#view").onclick = e => {
+  const b = e.target.closest(".co"); if (b) location.hash = "c/" + encodeURIComponent(b.dataset.c);
+};
+$("#solo").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  solo = !solo;
+  b.setAttribute("aria-pressed", solo);
+  render();
+};
+$("#cats").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  cat = b.dataset.c;
+  [...$("#cats").children].forEach(x => x.setAttribute("aria-pressed", x === b));
+  render();
+};
+let t;
+$("#q").oninput = () => { clearTimeout(t); t = setTimeout(render, 150); };
+
+// Las categorías salen de los datos, no de una lista fija: si job_boards añade
+// una fuente nueva, el filtro aparece solo.
+fetch("/api/companies").then(r => r.json()).then(d => {
+  empresas = d.companies;
+  pintaSalud(d.salud);          // por si el arranque cae en una pestaña que no
+                                // trae salud propia (Empresas la trae de aquí).
+  // Sin la de spring weeks: tiene pestaña propia y el listado general la
+  // esconde, así que su chip solo podría devolver cero resultados.
+  const cats = [...new Set(empresas.map(c => c.category))].filter(c => c !== INSIGHT_CAT).sort();
+  $("#cats").innerHTML = [["", "Todas"], ...cats.map(c => [c, c])]
+    .map(([v, l]) => `<button data-c="${esc(v)}" aria-pressed="${v === ""}">${esc(l)}</button>`).join("");
+  readHash();
+  render();
+});
+</script>
