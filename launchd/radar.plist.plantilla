@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  PLANTILLA. No se carga tal cual: `instalar.command` sustituye las @@marcas@@
+  por las rutas de esta máquina y deja el resultado en ~/Library/LaunchAgents.
+
+  Radar: el servidor local de la app (http://localhost:8000).
+
+  Por qué un agente y no arrancarlo a mano: la app solo sirve si se abre a
+  diario, y "abre la Terminal, ve a la carpeta y ejecuta python3 app.py" es
+  fricción suficiente para no abrirla nunca. Con esto Radar está siempre en el
+  marcador del navegador, como cualquier web.
+
+  KeepAlive lo relanza si se cae; RunAtLoad lo levanta al iniciar sesión. No
+  hace nada por su cuenta: solo espera peticiones del navegador (0% de CPU en
+  reposo).
+
+  Solo escucha en 127.0.0.1 (app.py), así que no es accesible desde la red.
+
+  Apagarlo:   launchctl bootout gui/$UID/@@LABEL@@
+  Encenderlo: launchctl bootstrap gui/$UID ~/Library/LaunchAgents/@@LABEL@@.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>@@LABEL@@</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@@PYTHON@@</string>
+    <string>app.py</string>
+  </array>
+  <key>WorkingDirectory</key><string>@@DIR@@</string>
+  <!-- launchd arranca con un PATH pelado (/usr/bin:/bin:/usr/sbin:/sbin). El
+       botón "Preparar mi solicitud" puede lanzar `claude -p` y el render del
+       PDF llama a Chrome: los dos van por ruta absoluta, pero cualquier
+       herramienta que llamen ellos por su cuenta buscaría en el PATH. Este es
+       el del usuario, tal como lo vio el instalador. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>@@PATH@@</string>
+    <key>HOME</key><string>@@HOME@@</string>
+    <!-- Sin esto, los print() de app.py se quedan en el buffer y radar.log sale
+         vacío justo cuando hace falta. -->
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <!-- Si el puerto está ocupado o app.py revienta al arrancar, KeepAlive lo
+       reintentaría en bucle cerrado. 30 s entre intentos: se recupera solo de
+       un fallo pasajero sin convertirse en una fuga de CPU. -->
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>@@DIR@@/radar.log</string>
+  <key>StandardErrorPath</key><string>@@DIR@@/radar.log</string>
+</dict>
+</plist>

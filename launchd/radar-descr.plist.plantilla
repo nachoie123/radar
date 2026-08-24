@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  PLANTILLA. `instalar.command` sustituye las @@marcas@@ y la deja cargada.
+
+  El texto de los anuncios (descr.py): una pasada por noche que lee la oferta
+  en la web de la empresa y la guarda, para que la ficha diga de qué va el
+  puesto sin salir de Radar.
+
+  03:30, una hora después de la ingesta: lee lo que haya entrado esa misma
+  noche y de paso reintenta lo que falló hace más de una semana (una oferta que
+  hoy da 404 puede ser un despliegue a medias de la fuente). El presupuesto de
+  25 min lo corta antes de que el watchdog de 30 tenga que hacerlo.
+
+  Si el Mac está dormido a esa hora, launchd lo lanza al despertar.
+
+  Lanzarlo a mano:  launchctl kickstart -k gui/$UID/@@LABEL@@
+  Apagarlo:         launchctl bootout gui/$UID/@@LABEL@@
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>@@LABEL@@</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>@@PYTHON@@</string>
+        <string>@@DIR@@/descr.py</string>
+        <string>--todas</string>
+        <string>--presupuesto</string>
+        <string>1500</string>
+        <string>--reintentar</string>
+        <string>7</string>
+    </array>
+    <key>WorkingDirectory</key><string>@@DIR@@</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key><string>@@PATH@@</string>
+        <key>HOME</key><string>@@HOME@@</string>
+        <key>PYTHONUNBUFFERED</key><string>1</string>
+    </dict>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>3</integer>
+        <key>Minute</key><integer>30</integer>
+    </dict>
+    <key>RunAtLoad</key><false/>
+    <key>StandardOutPath</key><string>@@DIR@@/descr.log</string>
+    <key>StandardErrorPath</key><string>@@DIR@@/descr.log</string>
+</dict>
+</plist>
