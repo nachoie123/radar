@@ -58,7 +58,7 @@ login and the catalogue refreshes overnight.
 ```bash
 git clone https://github.com/nachoie123/radar.git
 cd radar
-chmod +x instalar.command   # first time only
+chmod +x *.command          # first time only
 ./instalar.command
 ```
 
