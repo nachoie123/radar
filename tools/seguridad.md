@@ -1,6 +1,6 @@
 # Chequeo de seguridad de Radar.app
 
-Generado por `tools/seguridad.py` el 2026-10-03 19:48 sobre `dist/Radar.app`.
+Generado por `tools/seguridad.py` el 2026-10-03 19:50 sobre `dist/Radar.app`.
 Todo lo de abajo es salida real de este script, no texto escrito a mano.
 
 | Prueba | Resultado |
