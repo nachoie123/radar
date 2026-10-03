@@ -63,9 +63,31 @@
   .note{border-left:4px solid var(--accent)}
   footer{margin-top:64px;color:var(--muted);font-size:14px;text-align:center}
   footer a{color:inherit}
+
+  /* design pass (ui-ux-pro-max + apple-design): wayfinding bar, press feedback, wrapping */
+  html{scroll-padding-top:84px}
+  @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+  .top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px max(16px,calc((100% - 1008px)/2));background:color-mix(in srgb,var(--bg) 74%,transparent);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);border-bottom:1px solid var(--border)}
+  @supports (animation-timeline:scroll()){.top{border-bottom-color:transparent;animation:edge linear both;animation-timeline:scroll();animation-range:0 48px}}
+  @keyframes edge{to{border-bottom-color:var(--border)}}
+  @media (prefers-reduced-transparency:reduce){.top{background:var(--bg);-webkit-backdrop-filter:none;backdrop-filter:none}}
+  .top a{min-height:44px;display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:15px;font-weight:500;text-decoration:none;transition:color .2s}
+  .top a:hover{color:var(--text)}
+  .top .btn{padding:0 18px;font-size:15px}
+  .btn{transition:transform .12s ease-out,filter .2s,border-color .2s;-webkit-tap-highlight-color:transparent}
+  .btn:hover{filter:brightness(1.07)}
+  .btn:not(.main):hover{border-color:var(--accent)}
+  .btn:active{transform:scale(.97);transition-duration:.06s}
+  a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
+  h1,h2{text-wrap:balance}
+  p,li,figcaption{text-wrap:pretty}
+  .grid.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+  .stats4{grid-template-columns:repeat(4,1fr)}
+  @media (max-width:640px){.stats4{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
+<header class="top"><a href="https://nachosanbenito.com/#work"><span aria-hidden="true">←</span> nachosanbenito.com</a><a class="btn main" href="https://github.com/nachoie123/radar">GitHub</a></header>
 <main class="wrap">
   <div class="radar" aria-hidden="true"></div>
   <div class="video"><video src="radar-promo.mp4" poster="poster.jpg" controls playsinline preload="metadata"></video></div>
@@ -97,7 +119,7 @@
   </div>
 
   <h2>Real numbers from the author's database</h2>
-  <div class="stats">
+  <div class="stats stats4">
     <div class="card stat"><b>1,017</b><span>internship openings</span></div>
     <div class="card stat"><b>111</b><span>companies</span></div>
     <div class="card stat"><b>746</b><span>with the full posting text (73%)</span></div>
