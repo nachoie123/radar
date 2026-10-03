@@ -69,7 +69,7 @@ MIN_TEXTO = 200          # menos que esto es un aviso de cookies, no una oferta
 MAX_TEXTO = 12_000       # 490 ofertas × 12 KB = 6 MB de tope para jobs.db
 PAUSA = 0.8              # segundos entre peticiones: son webs ajenas
 
-# --- techo de reloj (ver ~/.claude/.../crons-macos-cuelgues) -----------------
+# --- techo de reloj ------------------------------------------------------------
 # En macOS `monotonic` NO avanza mientras el Mac duerme, así que un timeout de
 # socket de 25 s puede durar 12 horas de reloj de pared. Y launchd no relanza un
 # trabajo mientras siga vivo el anterior: un solo cuelgue cancela todas las
@@ -87,7 +87,10 @@ class _Reloj(BaseException):
 
 @contextlib.contextmanager
 def _alarma(seg):
-    if not hasattr(signal, "SIGALRM"):
+    # Fuera del hilo principal (Radar.app rellena en segundo plano) signal() no
+    # se puede usar: ahí queda el timeout de cada socket, y el Mac no duerme con
+    # la ventana abierta, que es lo que hacía falta cubrir en el cron.
+    if not hasattr(signal, "SIGALRM") or threading.current_thread() is not threading.main_thread():
         yield
         return
     def _salta(*_):
@@ -457,10 +460,13 @@ def _resumen(conn):
             "%d sin tocar" % (s["con"], s["n"], pct, s["fallidas"], s["virgenes"]))
 
 
-# Vigilante de crons opcional, fuera de este repo: si no está, no hay nada que
-# avisar y `_latido` no hace nada. La ruta se puede mover con RADAR_HEARTBEAT.
-HEARTBEAT = Path(os.environ.get("RADAR_HEARTBEAT",
-                                Path.home() / "Projects" / "cron-heartbeat"))
+def _heartbeat():
+    """Carpeta del vigilante de crons (con su heartbeat.py), o None. Opcional y
+    fuera de este repo: la clave "heartbeat" de config.json (vacía por defecto =
+    desactivado), o la variable RADAR_HEARTBEAT."""
+    import ingesta
+    ruta = os.environ.get("RADAR_HEARTBEAT") or ingesta.cargar_config().get("heartbeat") or ""
+    return Path(ruta).expanduser() if ruta.strip() else None
 
 
 def _latido(detalle):
@@ -468,15 +474,16 @@ def _latido(detalle):
     pasada NO ocurra no deja rastro: el catálogo simplemente se queda sin texto
     nuevo y no hay nada que lo diga.
 
-    Que el vigilante no exista es lo normal fuera del Mac de Nacho, así que en
-    ese caso se calla: un aviso en cada pasada por algo que nadie ha instalado
-    es ruido que enseña a ignorar el log."""
-    if not (HEARTBEAT / "heartbeat.py").exists():
+    Que el vigilante no exista es lo normal, así que en ese caso se calla: un
+    aviso en cada pasada por algo que nadie ha instalado es ruido que enseña a
+    ignorar el log."""
+    hb = _heartbeat()
+    if not hb or not (hb / "heartbeat.py").exists():
         return
     try:
-        sys.path.insert(0, str(HEARTBEAT))
+        sys.path.insert(0, str(hb))
         from heartbeat import beat
-        beat(os.environ.get("RADAR_LABEL_DESCR", "com.nacho.radardescr"),
+        beat(os.environ.get("RADAR_LABEL_DESCR", "com.radar.descr"),
              detalle=detalle)
     except Exception as e:                         # noqa: BLE001
         print("[heartbeat] no pude dejar el latido: %s" % e, flush=True)

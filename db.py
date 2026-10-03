@@ -17,12 +17,35 @@ degradándose con cada alta. Una oferta sin fila en user_jobs es simplemente
 'nueva' para ese usuario — el estado por defecto sale del LEFT JOIN, no de una
 fila escrita.
 """
+import os
 import re
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB = Path(__file__).resolve().parent / "jobs.db"
+
+def _carpeta_datos():
+    """Dónde viven los datos de quien usa Radar: jobs.db, config.json, cv.md,
+    descubiertos.json y los logs. Una sola carpeta, y nada fuera de ella.
+
+      - Desde el repo: al lado del código, como siempre (el .gitignore los deja
+        fuera de git).
+      - En Radar.app (PyInstaller, `sys.frozen`): ~/Library/Application
+        Support/Radar. El paquete es de solo lectura y se sustituye entero al
+        actualizar; lo que se guardase dentro se perdería con él.
+      - RADAR_DATA manda sobre las dos: el --selftest la apunta a una carpeta
+        temporal para poder comprobar que no se escribe nada en otro sitio."""
+    if os.environ.get("RADAR_DATA"):
+        return Path(os.environ["RADAR_DATA"])
+    if getattr(sys, "frozen", False):
+        return Path.home() / "Library" / "Application Support" / "Radar"
+    return Path(__file__).resolve().parent
+
+
+DATA = _carpeta_datos()
+DATA.mkdir(parents=True, exist_ok=True)
+DB = DATA / "jobs.db"
 ME = 1                                   # único usuario mientras esto sea local
 
 # Fuentes que NO son del catálogo público. Una fuente que se lee con la sesión de

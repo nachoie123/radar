@@ -31,6 +31,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import db
+
 try:                                    # certifi es OPCIONAL: solo hace falta si
     import certifi                      # el Python del sistema no trae raíces CA
     _CTX = ssl.create_default_context(cafile=certifi.where())
@@ -38,11 +40,17 @@ except Exception:                       # noqa: BLE001
     _CTX = ssl.create_default_context()
 
 HERE = Path(__file__).resolve().parent
-CONFIG = HERE / "config.json"
+# El ejemplo va con el código (también dentro de Radar.app); lo que es de cada
+# uno —su config y lo que encuentre probe.py— va en la carpeta de datos (db.DATA).
+CONFIG = db.DATA / "config.json"
 EJEMPLO = HERE / "config.example.json"
 # probe.py escribe aquí los tableros que encuentra vivos y con becas. Opcional:
 # sin el fichero, se ingesta solo la lista curada a mano.
-DESCUBIERTOS = HERE / "descubiertos.json"
+DESCUBIERTOS = db.DATA / "descubiertos.json"
+
+# Por dónde va la pasada, para la barra de progreso de la app (app.py la lee
+# desde otro hilo). Fuentes miradas de las que hay que mirar.
+PROGRESO = {"hechas": 0, "total": 0}
 
 HTTP_TIMEOUT = 25            # timeout de cada petición HTTP
 MAX_SECONDS = 900            # techo de reloj de la pasada entera (override en config)
@@ -1258,6 +1266,7 @@ def _fuentes_directas(specs, cat, prefix, f):
             except Exception as e:                              # noqa: BLE001
                 row["err"] = f"{type(e).__name__}: {e}"[:70]
         rows.append(row)
+        PROGRESO["hechas"] += 1
     return rows
 
 
@@ -1293,6 +1302,7 @@ def _fuentes_github(f, cfg):
         except Exception as e:                                  # noqa: BLE001
             row["err"] = f"{type(e).__name__}: {e}"[:70]
         rows.append(row)
+        PROGRESO["hechas"] += 1
     return rows
 
 
@@ -1309,6 +1319,11 @@ def pasada(cfg, quiero=None):
     pide = [x for x in (quiero or cfg.get("fuentes") or FUENTES) if x in FUENTES]
     _FIN = time.time() + int(cfg.get("max_seconds", MAX_SECONDS))
     rows = []
+    plan = [("es", DIRECT_ES, ES_CAT, "es"), ("eu", DIRECT_EU, EU_CAT, "eu"),
+            ("banca", DIRECT_BANK, DIRECT_CAT, "bank"),
+            ("consultoria", DIRECT_CONSULT, CONSULT_CAT, "consult")]
+    PROGRESO.update(hechas=0, total=sum(len(specs) for clave, specs, _, _ in plan if clave in pide)
+                    + (len(TABLEROS) if "github" in pide else 0))
     # Primero lo que no toca la red: si el techo de reloj salta a mitad, al menos
     # el catálogo no se queda del todo vacío.
     if "programas" in pide:
@@ -1323,9 +1338,6 @@ def pasada(cfg, quiero=None):
         # puerta de entrada a las prácticas de verano del año siguiente.
         r["offers"], r["excl"] = _filtrar(r["offers"], f, verano=False)
         rows.append(r)
-    plan = [("es", DIRECT_ES, ES_CAT, "es"), ("eu", DIRECT_EU, EU_CAT, "eu"),
-            ("banca", DIRECT_BANK, DIRECT_CAT, "bank"),
-            ("consultoria", DIRECT_CONSULT, CONSULT_CAT, "consult")]
     for clave, specs, cat, prefix in plan:
         if clave in pide:
             print(f"· {clave}: {len(specs)} fuentes…", flush=True)
@@ -1343,7 +1355,6 @@ def guardar(rows):
     Cada empresa vigilada deja además una fila-marcador con el enlace a su web,
     para que exista en la app aunque hoy tenga la convocatoria cerrada o no
     exponga listado público."""
-    import db
     conn = db.connect()
     nuevas = sum(db.upsert(conn, r["offers"], source=r["repo"], category=r["cat"],
                            board=r["name"]) for r in rows if r["offers"])

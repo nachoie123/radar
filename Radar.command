@@ -10,9 +10,7 @@ UID_="$(id -u)"
 # haya en el disco antes de rendirse.
 LABEL="$(cat .radar-label 2>/dev/null)"
 if [[ -z "$LABEL" ]]; then
-  for c in com.nacho.radar com.radar.app; do
-    [[ -f "$HOME/Library/LaunchAgents/$c.plist" ]] && LABEL="$c" && break
-  done
+  [[ -f "$HOME/Library/LaunchAgents/com.radar.app.plist" ]] && LABEL="com.radar.app"
 fi
 if [[ -z "$LABEL" ]]; then
   echo "No hay ningún agente de Radar instalado: pasa antes por instalar.command."

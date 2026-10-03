@@ -3,12 +3,20 @@
 Único consumidor de db.py. No importa sqlite3: si algún día esto habla con
 Postgres, aquí no se toca nada.
 
-    python3 app.py          → http://localhost:8000
+    python3 app.py             → http://localhost:8000 (el servidor de siempre)
+    python3 app.py --app       → como Radar.app: ventana propia y puerto libre
+    python3 app.py --selftest  → prueba sin ventana; escribe selftest.json
+    python3 app.py --check     → tests, sin red
+
+Radar.app (PyInstaller) arranca siempre en modo --app.
 """
+import contextlib
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -16,13 +24,30 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-import db
+# El selftest no puede escribir en la carpeta de datos de verdad. db decide
+# DATA al importarse, así que la carpeta temporal se fija ANTES de importarlo.
+if "--selftest" in sys.argv and not os.environ.get("RADAR_DATA"):
+    os.environ["RADAR_DATA"] = tempfile.mkdtemp(prefix="radar-selftest-")
 
-HERE = Path(__file__).resolve().parent
+import db        # noqa: E402
+import descr     # noqa: E402
+import ingesta   # noqa: E402
+
+HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))   # código (y index.html)
+DATA = db.DATA                                    # datos de quien lo usa (ver db._carpeta_datos)
 PORT = 8000
-CV = Path.home() / ".claude/skills/cv-adapter/references/master-cv.md"
-NIGHT = Path.home() / "Projects" / "night-apply"    # tailor() + render_pdf()
-BOARDS = Path.home() / "Projects" / "job-boards"    # la ingesta y sus logs
+# El CV vive en la base (se pega en la pestaña "Mi CV"). Este fichero es solo
+# un atajo: si existe y la base aún no tiene CV, se copia una vez.
+CV = DATA / "cv.md"
+
+
+def _night():
+    """Carpeta de night-apply (tailor() + render_pdf()), o None. Es una
+    integración privada y opcional: la clave "night_apply" de config.json,
+    vacía por defecto. Se lee en cada petición, igual que antes se miraba el
+    disco: configurarla no obliga a reiniciar el servidor."""
+    ruta = (ingesta.cargar_config().get("night_apply") or "").strip()
+    return Path(ruta).expanduser() if ruta else None
 
 # Cuánto mira atrás la pestaña "Hoy" la PRIMERA vez, antes de que exista una
 # marca de "visto". Tres días: si abre a diario nunca se llega a usar, y si
@@ -89,7 +114,7 @@ Mi CV es este:
 
 
 # El otro lado de "Preparar mi solicitud": lo que ve quien NO tiene night-apply
-# en el disco, que es todo el mundo menos Nacho. En vez de adaptar el CV aquí
+# configurado, que es casi todo el mundo. En vez de adaptar el CV aquí
 # —lo que pediría una suscripción, `claude -p` y reportlab—, Radar entrega el
 # prompt ya montado con el anuncio y el CV dentro: se copia, se pega en Claude y
 # el CV adaptado vuelve por ahí. Mismo resultado y cero dependencias, que es lo
@@ -147,14 +172,15 @@ def prompt_aplicar(row, cv_text, texto=""):
 
 
 def modo_aplicar():
-    """"local" si night-apply está en el disco, "prompt" si no.
+    """"local" si night-apply está configurado y en el disco, "prompt" si no.
 
     Se mira en cada petición y no al arrancar, por dos razones: instalar
     night-apply no debería obligar a reiniciar el servidor, y la pantalla
     necesita saberlo ANTES de que se pulse el botón —uno tarda 1-2 min y el
     otro es instantáneo, y un botón que promete la espera equivocada es la
     forma más barata de que alguien crea que se ha colgado."""
-    return "local" if NIGHT.exists() else "prompt"
+    night = _night()
+    return "local" if night and night.exists() else "prompt"
 
 
 def cv_keywords(md):
@@ -281,10 +307,9 @@ def encaje(conn, row, kw, toks, texto=""):
 
 
 def seed_cv(conn, path=CV):
-    """Arranque: si el usuario todavía no tiene CV en la base y el master CV de
-    Nacho está en el disco, se copia una vez. Es el puente entre la app local de
-    una persona y el producto — en cuanto hay cuentas, este disco no existe y
-    cada uno pega el suyo por la web."""
+    """Arranque: si el usuario todavía no tiene CV en la base y hay un `cv.md`
+    en la carpeta de datos, se copia una vez. Lo normal es pegarlo en la
+    pestaña "Mi CV"; el fichero es el atajo para quien lo tenga ya escrito."""
     if db.get_cv(conn):
         return False
     try:
@@ -314,27 +339,27 @@ def _target(row):
 def prepare(row, cv_text, texto=""):
     """Botón "Preparar mi solicitud". Dos caminos, y el disco decide cuál:
 
-    - Con ~/Projects/night-apply instalado (el Mac de Nacho): el pipeline de
-      siempre, que adapta el CV con `claude -p` y devuelve el PDF y el dossier.
-    - Sin él (cualquiera que clone Radar): un prompt listo para copiar, con el
-      anuncio y el CV dentro.
+    - Con night-apply configurado en config.json ("night_apply"): adapta el CV
+      con `claude -p` y devuelve el PDF y el dossier.
+    - Sin él (lo de serie): un prompt listo para copiar, con el anuncio y el CV
+      dentro.
 
-    night-apply se DETECTA, no se exige: es lo que separa "esto solo va en el
-    Mac de Nacho" de "esto lo clona cualquiera", y el día que alguien lo instale
-    el botón cambia de camino sin tocar una línea."""
-    if NIGHT.exists():
-        return prepare_local(row, cv_text)
+    night-apply es opcional, no se exige: el día que alguien lo configure el
+    botón cambia de camino sin tocar una línea."""
+    night = _night()
+    if night and night.exists():
+        return prepare_local(row, cv_text, night)
     if not cv_text:
         return {"error": "todavía no has puesto tu CV: pégalo en la pestaña Mi CV"}
     return {"prompt": prompt_aplicar(row, cv_text, texto)}
 
 
-def prepare_local(row, cv_text):
+def prepare_local(row, cv_text, night):
     """El camino con night-apply: adapta el CV a ESTA oferta y devuelve el
     dossier con cada campo del formulario contestado. Tarda 1-2 min (`claude
     -p`) y deja el resultado en night-apply/out/, así que la segunda vez sale
     de ahí."""
-    sys.path.insert(0, str(NIGHT))
+    sys.path.insert(0, str(night))
     import night_apply as na                  # dentro: si no está, es un error de
     stem = na.slug(f"{row['company']} {row['role']}")   # este botón, no del server
     md, pdf = na.OUT / f"{stem}.md", na.OUT / f"{stem}.pdf"
@@ -349,8 +374,7 @@ def prepare_local(row, cv_text):
     if not cv_text:
         return {"error": "todavía no has puesto tu CV: pégalo en la pestaña Mi CV"}
     na.OUT.mkdir(parents=True, exist_ok=True)
-    # El CV sale de la base, no del disco: aquí es donde el botón Aplicar deja de
-    # ser de Nacho y pasa a ser de quien esté usando la app.
+    # El CV sale de la base, no del disco: el de quien esté usando la app.
     body, dossier = na.tailor(cv_text, _target(row), model)
     md.write_text(dossier)
     # body=None: portal ilegible (Workday y compañía). Hay respuestas, no CV.
@@ -391,7 +415,9 @@ def salud(conn, ahora=None):
         except ValueError:
             horas = None
     avisos = []
-    if horas is not None and horas >= FRESCO_H:
+    # Mientras la app está refrescando, "catálogo de hace 3 días" sobra: la
+    # barra de progreso ya dice que se está poniendo al día.
+    if horas is not None and horas >= FRESCO_H and not INGESTA["corriendo"]:
         dias = int(horas // 24)
         cuanto = f"{dias} días" if dias >= 2 else f"{int(horas)} horas"
         avisos.append({"txt": f"Catálogo de hace {cuanto}: la ingesta lleva desde "
@@ -401,18 +427,92 @@ def salud(conn, ahora=None):
     # que ya no se usa es ruido permanente. Las 169 ofertas del IE que quedan en
     # jobs.db son de esa fecha y no se refrescan. Si se reactiva la fuente,
     # recuperar este bloque del backup `app.py.bak-20260816-corte-ie`.
-    # Ídem con el cron nocturno: manda lo último que pasó. Una pasada que llega a
-    # escribir en jobs.db ("jobs.db: +N nuevas") cancela el aviso de la anterior,
-    # que si no se quedaría pegado para siempre en el log.
-    for linea in reversed(_cola(BOARDS / "run.log", 12)):
+    # Ídem con la ingesta: manda lo último que pasó. ingesta.log lo escriben el
+    # agente nocturno (launchd/) y la app; la línea final de cada pasada es
+    # "jobs.db: +N nuevas" o "jobs.db: NO se pudo guardar (…)".
+    for linea in reversed(_cola(DATA / "ingesta.log", 12)):
+        if "jobs.db: NO" in linea:
+            avisos.append({"txt": "La última pasada de ingesta no pudo guardar nada "
+                                  "en el catálogo.", "url": ""})
         if "jobs.db:" in linea:
             break
-        if "watchdog" in linea:
-            avisos.append({"txt": "La última pasada de ingesta se cortó por el watchdog "
-                                  "antes de escribir nada.", "url": ""})
-            break
     return {"hasta": hasta, "horas": None if horas is None else round(horas, 1),
-            "avisos": avisos}
+            "avisos": avisos, "ingesta": dict(INGESTA)}
+
+
+# ---------- la ingesta dentro de la app ----------
+# En Radar.app no hay launchd ni `python3`: la pasada corre en un hilo del propio
+# proceso. La primera vez llena el catálogo vacío (~5 min); después, al abrir,
+# refresca si la última pasada tiene más de REFRESCO_H horas. Al cerrar la
+# ventana el proceso sale y el hilo con él: nada se queda corriendo.
+REFRESCO_H = 12
+DESCR_TANDA = 150            # anuncios por apertura: el resto, en la siguiente
+DESCR_PRESUPUESTO = 10 * 60
+INGESTA = {"corriendo": False, "primera": False, "fase": "", "hechas": 0, "total": 0,
+           "error": ""}
+_INGESTA_LOCK = threading.Lock()
+
+
+def toca_ingesta(conn, ahora=None):
+    """None, "primera" (catálogo vacío) o "refresco" (más de REFRESCO_H horas)."""
+    st = db.stats(conn) or {}
+    if not st.get("n"):
+        return "primera"
+    try:
+        t = datetime.fromisoformat(st.get("hasta") or "")
+    except ValueError:
+        return "refresco"
+    t = t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+    ahora = ahora or datetime.now(timezone.utc)
+    return "refresco" if (ahora - t).total_seconds() > REFRESCO_H * 3600 else None
+
+
+def _pasada(argv, primera, con_descr=True):
+    """Ingesta + anuncios, en el hilo que la llame. La salida va a ingesta.log
+    (lo que lee salud()), no a la terminal, que en Radar.app no existe."""
+    if not _INGESTA_LOCK.acquire(blocking=False):
+        return False                                   # ya hay una en marcha
+    INGESTA.update(corriendo=True, primera=primera, fase="ofertas", error="",
+                   hechas=0, total=0)
+    reloj = threading.Event()
+
+    def _sigue():                                      # progreso real: fuentes miradas
+        while not reloj.wait(0.5):
+            INGESTA.update(hechas=ingesta.PROGRESO["hechas"], total=ingesta.PROGRESO["total"])
+    threading.Thread(target=_sigue, daemon=True).start()
+    try:
+        with open(DATA / "ingesta.log", "a", buffering=1, encoding="utf-8") as log, \
+                contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
+            print(f"\n--- {datetime.now():%Y-%m-%d %H:%M} pasada desde la app ---", flush=True)
+            if ingesta.main(argv):
+                INGESTA["error"] = "la ingesta no pudo guardar (mira ingesta.log)"
+            if con_descr:
+                INGESTA["fase"] = "anuncios"
+                conn = db.connect()
+                try:
+                    descr.rellena(conn, limite=DESCR_TANDA, presupuesto=DESCR_PRESUPUESTO, ruido=False)
+                finally:
+                    conn.close()
+    except Exception as e:                             # noqa: BLE001 — que se vea, no que tumbe
+        INGESTA["error"] = f"{type(e).__name__}: {e}"[:200]
+    finally:
+        reloj.set()
+        INGESTA.update(corriendo=False, fase="", hechas=ingesta.PROGRESO["hechas"],
+                       total=ingesta.PROGRESO["total"])
+        _INGESTA_LOCK.release()
+    return True
+
+
+def ingesta_si_toca():
+    """Al abrir la app: lanza la pasada en segundo plano si toca. Devuelve qué."""
+    conn = db.connect()
+    try:
+        cual = toca_ingesta(conn)
+    finally:
+        conn.close()
+    if cual:
+        threading.Thread(target=_pasada, args=([], cual == "primera"), daemon=True).start()
+    return cual
 
 
 # Rango CGNAT que usa Tailscale para las IP de tu tailnet (100.64.0.0/10). Es
@@ -538,16 +638,41 @@ ESTATICOS = {"/": "index.html", "/index.html": "index.html"}
 
 
 class Radar(SimpleHTTPRequestHandler):
+    # Hosts que se aceptan (los rellena quien arranca el servidor). Anti DNS
+    # rebinding: una web cualquiera puede hacer que su dominio resuelva a
+    # 127.0.0.1 y leer la API como "mismo origen"; lo que no puede cambiar es la
+    # cabecera Host, que seguiría diciendo su dominio. None = sin chequeo (tests).
+    HOSTS = None
+
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(HERE), **kw)
 
+    def _host_ok(self):
+        if self.HOSTS is None or self.headers.get("Host") in self.HOSTS:
+            return True
+        self.send_error(403, "host no permitido")
+        return False
+
+    def do_HEAD(self):
+        if self._host_ok():
+            super().do_HEAD()
+
     def do_GET(self):
+        if not self._host_ok():
+            return
         u = urlparse(self.path)
         if u.path.startswith("/cv/"):        # el PDF adaptado vive en night-apply/out
-            f = NIGHT / "out" / Path(u.path).name   # .name: no se sube de directorio
-            if f.suffix != ".pdf" or not f.exists():
+            night = _night()
+            f = night / "out" / Path(u.path).name if night else None   # .name: no se sube de directorio
+            if not f or f.suffix != ".pdf" or not f.exists():
                 return self.send_error(404)
             return self._send(f.read_bytes(), "application/pdf")
+        if u.path == "/api/salud":           # lo que sondea la barra de progreso
+            conn = db.connect()
+            try:
+                return self._json(json.dumps(salud(conn)).encode())
+            finally:
+                conn.close()
         if u.path not in ("/api/jobs", "/api/companies", "/api/profile", "/api/hoy"):
             # Lista blanca, no "la carpeta entera". `SimpleHTTPRequestHandler`
             # sirve el directorio en el que vive el código, y ahí está `jobs.db`
@@ -632,6 +757,8 @@ class Radar(SimpleHTTPRequestHandler):
         self._json(body)
 
     def do_POST(self):
+        if not self._host_ok():
+            return
         path = urlparse(self.path).path
         if path not in ("/api/apply", "/api/status", "/api/profile", "/api/visto"):
             return self.send_error(404)
@@ -719,240 +846,241 @@ class Radar(SimpleHTTPRequestHandler):
         pass                                  # sin ruido en la terminal
 
 
-if __name__ == "__main__":
-    if "--check" in sys.argv:
-        # El master CV es de Nacho y no viaja con el repo. Donde esté, se
-        # comprueba contra él de verdad: que `cv_keywords` siga encontrando su
-        # bloque de skills es lo ÚNICO que avisa de que "Para ti" se ha quedado
-        # sin query. Donde no esté (cualquiera que clone esto), el resto del
-        # bloque se prueba igual, con CVs de mentira escritos aquí mismo.
-        if CV.exists():
-            kw = cv_keywords(CV.read_text(encoding="utf-8"))
-            assert "clustering" in kw, "no lee el bloque ## SKILLS del master CV"
-            assert "scikit" not in kw, "no ha quitado los <!-- pendiente confirmar -->"
-            # Centinelas del "se ha caido al documento entero": estas dos cadenas
-            # solo existen en secciones que NO son de skills. Si aparecen, el
-            # master CV ha vuelto a cambiar de encabezados y "Para ti" esta
-            # rankeando con su propio manual de estilo. Pasó el 20/08/2026 con la
-            # renumeración a "## 6. ...".
-            assert "PENDIENTE" not in kw, "cv_keywords se ha tragado el CV entero"
-            assert len(kw) < 3000, "query sospechosamente larga: %d caracteres" % len(kw)
-        assert cv_keywords("## 6. ADDITIONAL INFORMATION\n- clustering\n") .strip() \
-            == "- clustering", "el encabezado numerado del formato del IE"
-        assert cv_keywords("## OTRA COSA\nhola") == "", \
-            "con encabezados pero sin skills se queda corto, no se traga todo"
-        # Sin salto de línea al final y con las skills de últimas: es como sale
-        # de la base un CV pegado a mano.
-        assert "clustering" in cv_keywords("## SKILLS\n- clustering"), \
-            "el CV de la base viene sin \\n final y ahí es donde se perdía"
-        # Un CV pegado a pelo no tiene encabezados: vale el texto entero.
-        assert cv_keywords("python, sql y algo de valoración") .strip() \
-            == "python, sql y algo de valoración"
-        assert cv_keywords("") == "" and cv_keywords(None) == ""
-        # El CV vive en la base, no en el disco: seed_cv() solo hace de puente.
-        # Con un fichero de mentira, no con el master CV: así esta parte se
-        # prueba igual en una máquina que no tenga el de Nacho.
-        import tempfile
-        falso = Path(tempfile.mkdtemp()) / "master-cv.md"
-        falso.write_text("## SKILLS\n- clustering, python, sql\n", encoding="utf-8")
-        c = db.connect(":memory:")
-        assert seed_cv(c, falso) is True and "clustering" in cv_keywords(db.get_cv(c))
-        assert seed_cv(c, falso) is False, "solo siembra una vez: no pisa lo que pegue el usuario"
-        db.set_cv(c, "mi CV nuevo")
-        assert seed_cv(c, falso) is False and db.get_cv(c) == "mi CV nuevo"
-        # Y sin fichero: no revienta, simplemente no siembra ("Para ti" se queda
-        # con las recientes hasta que el usuario pegue el suyo).
-        assert seed_cv(db.connect(":memory:"), falso.with_name("no-existe.md")) is False
-        # --- encaje: lo que se enseña es lo que puntúa ---
-        oferta = {"role": "AI Automation Engineer Intern", "company": "Tacto"}
-        assert hits(oferta, cv_toks("python, ai y automation")) == ["ai", "automation"], \
-            hits(oferta, cv_toks("python, ai y automation"))
-        assert hits({"role": "Data Intern", "company": "Data Corp"},
-                    cv_toks("data")) == ["data"], "un término repetido se enseña una vez"
-        assert "in" not in cv_toks("machine learning in production"), \
-            "las palabras vacías casarían con medio catálogo"
-        assert hits({"role": "Intern", "company": "X"}, cv_toks("")) == []
-        c = db.connect(":memory:")
-        db.upsert(c, [{"key": "e1", "company": "Tacto", "role": "AI Automation Intern"},
-                      {"key": "e2", "company": "Nestlé", "role": "Controlling Intern"}])
-        kw2 = "ai automation"
-        e = encaje(c, db.get(c, 1), kw2, cv_toks(kw2))
-        assert (e["terminos"], e["puesto"], e["total"]) == (["ai", "automation"], 1, 1), e
-        # La que no casa en NADA no está en el ranking: puesto None, y la ficha lo
-        # dice. Con el anuncio indexado ya no es el caso corriente, pero sigue
-        # siéndolo de las ofertas cuyo texto no se ha podido leer.
-        e = encaje(c, db.get(c, 2), kw2, cv_toks(kw2))
-        assert (e["terminos"], e["puesto"], e["anuncio"]) == ([], None, []), e
-        # --- el anuncio, en la ficha y en la lista (2026-08-23) ---
-        # Lo que está en el cuerpo y no en el título se enseña aparte: son dos
-        # cosas distintas para el ranking y también para quien lee.
-        db.set_descr(c, 2, "buscamos a alguien con ganas de automation", "workday")
-        e = encaje(c, db.get(c, 2), kw2, cv_toks(kw2), db.descr(c, 2)["descr"])
-        assert (e["terminos"], e["anuncio"], e["puesto"]) == ([], ["automation"], 2), e
-        assert hits_txt("ai y automation", cv_toks(kw2), ya=["ai"]) == ["automation"], \
-            "un término que ya sale en el título no se repite en el anuncio"
-        assert hits_txt("", cv_toks(kw2)) == [] and hits_txt(None, cv_toks(kw2)) == []
-        # Y en la lista, la que entra por el anuncio lo dice. Sin la marca, la
-        # columna caería al tablero y se leería como "no casa contigo".
-        porcv = {j["company"]: j for j in [_fila(r, cv_toks(kw2))
-                                          for r in db.search(c, kw2)]}
-        assert porcv["Nestlé"].get("anuncio") is True and porcv["Nestlé"]["hits"] == []
-        assert "anuncio" not in porcv["Tacto"], "la que casa en el título no la lleva"
-        assert encaje(c, db.get(c, 1), "", frozenset()) is None, "sin CV no hay encaje"
-        assert "score" not in _fila(db.get(c, 1)), "el bm25 crudo ya no sale a pantalla"
-        assert _fila(db.get(c, 1), cv_toks(kw2))["hits"] == ["ai", "automation"]
-        t = _target({"company": "BBVA", "role": "Beca Quant Finance · Madrid",
-                     "url": "u", "category": "🇪🇸 España · empresas top"})
-        assert (t["city"], t["country"]) == ("Madrid", "Spain"), t
-        t = _target({"company": "TEC", "role": "AIT Intern · Munich, Germany",
-                     "url": "u", "category": "🇪🇺 Europa · empresas con buen nombre"})
-        assert (t["city"], t["country"]) == ("Munich", "Germany"), t
-        t = _target({"company": "N26", "role": "Software Intern", "url": "u",
-                     "category": "🇪🇺 Europa · empresas con buen nombre"})
-        assert (t["city"], t["country"]) == ("", ""), t   # sin país: lo deduce la JD
-        # --- "Preparar mi solicitud" sin night-apply: el prompt ---
-        c3 = db.connect(":memory:")
-        db.upsert(c3, [{"key": "p1", "company": "Alantra",
-                        "role": "Quant Intern · Madrid", "url": "https://x.test/1"}])
-        fila = db.get(c3, 1)
-        pr = prompt_aplicar(fila, "## SKILLS\npython", " Buscamos alguien con Python. ")
-        assert "Empresa: Alantra" in pr and "Enlace: https://x.test/1" in pr, pr
-        # La ubicación va en su línea y no repetida en el puesto.
-        assert "Puesto: Quant Intern\n" in pr and "Ubicación: Madrid" in pr, pr
-        assert "Buscamos alguien con Python." in pr and pr.endswith("## SKILLS\npython")
-        # Sin anuncio leído se DICE, y con el enlace delante: quien pega el prompt
-        # tiene que saber que Claude no ha visto la oferta.
-        pr = prompt_aplicar(fila, "mi cv", "")
-        assert "No tengo el texto del anuncio" in pr and "https://x.test/1" in pr, pr
-        db.upsert(c3, [{"key": "p2", "company": "Curada", "role": "Beca"}])
-        pr = prompt_aplicar(db.get(c3, 2), "mi cv")
-        assert "ni enlace" in pr and "Ubicación" not in pr, pr
-        # El disco elige el camino. Se falsea NIGHT para probar los dos aquí:
-        # en el Mac de Nacho existe y en cualquier otro sitio no.
-        real, globals()["NIGHT"] = NIGHT, Path("/no/existe/night-apply")
+def _check():
+    # Todo con CVs de mentira escritos aquí mismo: ningún CV real del disco.
+    assert "clustering" in cv_keywords("## SKILLS\n- clustering\n<!-- scikit -->\n## OTRA\nPENDIENTE"), \
+        "no lee el bloque ## SKILLS"
+    assert "scikit" not in cv_keywords("## SKILLS\n- clustering\n<!-- scikit -->\n"), \
+        "no ha quitado los <!-- pendiente confirmar -->"
+    assert "PENDIENTE" not in cv_keywords("## SKILLS\n- clustering\n## OTRA\nPENDIENTE"), \
+        "cv_keywords se ha tragado el CV entero"
+    assert cv_keywords("## 6. ADDITIONAL INFORMATION\n- clustering\n") .strip() \
+        == "- clustering", "el encabezado numerado del formato del IE"
+    assert cv_keywords("## OTRA COSA\nhola") == "", \
+        "con encabezados pero sin skills se queda corto, no se traga todo"
+    # Sin salto de línea al final y con las skills de últimas: es como sale
+    # de la base un CV pegado a mano.
+    assert "clustering" in cv_keywords("## SKILLS\n- clustering"), \
+        "el CV de la base viene sin \\n final y ahí es donde se perdía"
+    # Un CV pegado a pelo no tiene encabezados: vale el texto entero.
+    assert cv_keywords("python, sql y algo de valoración") .strip() \
+        == "python, sql y algo de valoración"
+    assert cv_keywords("") == "" and cv_keywords(None) == ""
+    # El CV vive en la base, no en el disco: seed_cv() solo hace de puente.
+    falso = Path(tempfile.mkdtemp()) / "master-cv.md"
+    falso.write_text("## SKILLS\n- clustering, python, sql\n", encoding="utf-8")
+    c = db.connect(":memory:")
+    assert seed_cv(c, falso) is True and "clustering" in cv_keywords(db.get_cv(c))
+    assert seed_cv(c, falso) is False, "solo siembra una vez: no pisa lo que pegue el usuario"
+    db.set_cv(c, "mi CV nuevo")
+    assert seed_cv(c, falso) is False and db.get_cv(c) == "mi CV nuevo"
+    # Y sin fichero: no revienta, simplemente no siembra ("Para ti" se queda
+    # con las recientes hasta que el usuario pegue el suyo).
+    assert seed_cv(db.connect(":memory:"), falso.with_name("no-existe.md")) is False
+    # --- encaje: lo que se enseña es lo que puntúa ---
+    oferta = {"role": "AI Automation Engineer Intern", "company": "Tacto"}
+    assert hits(oferta, cv_toks("python, ai y automation")) == ["ai", "automation"], \
+        hits(oferta, cv_toks("python, ai y automation"))
+    assert hits({"role": "Data Intern", "company": "Data Corp"},
+                cv_toks("data")) == ["data"], "un término repetido se enseña una vez"
+    assert "in" not in cv_toks("machine learning in production"), \
+        "las palabras vacías casarían con medio catálogo"
+    assert hits({"role": "Intern", "company": "X"}, cv_toks("")) == []
+    c = db.connect(":memory:")
+    db.upsert(c, [{"key": "e1", "company": "Tacto", "role": "AI Automation Intern"},
+                  {"key": "e2", "company": "Nestlé", "role": "Controlling Intern"}])
+    kw2 = "ai automation"
+    e = encaje(c, db.get(c, 1), kw2, cv_toks(kw2))
+    assert (e["terminos"], e["puesto"], e["total"]) == (["ai", "automation"], 1, 1), e
+    # La que no casa en NADA no está en el ranking: puesto None, y la ficha lo
+    # dice. Con el anuncio indexado ya no es el caso corriente, pero sigue
+    # siéndolo de las ofertas cuyo texto no se ha podido leer.
+    e = encaje(c, db.get(c, 2), kw2, cv_toks(kw2))
+    assert (e["terminos"], e["puesto"], e["anuncio"]) == ([], None, []), e
+    # --- el anuncio, en la ficha y en la lista (2026-08-23) ---
+    # Lo que está en el cuerpo y no en el título se enseña aparte: son dos
+    # cosas distintas para el ranking y también para quien lee.
+    db.set_descr(c, 2, "buscamos a alguien con ganas de automation", "workday")
+    e = encaje(c, db.get(c, 2), kw2, cv_toks(kw2), db.descr(c, 2)["descr"])
+    assert (e["terminos"], e["anuncio"], e["puesto"]) == ([], ["automation"], 2), e
+    assert hits_txt("ai y automation", cv_toks(kw2), ya=["ai"]) == ["automation"], \
+        "un término que ya sale en el título no se repite en el anuncio"
+    assert hits_txt("", cv_toks(kw2)) == [] and hits_txt(None, cv_toks(kw2)) == []
+    # Y en la lista, la que entra por el anuncio lo dice. Sin la marca, la
+    # columna caería al tablero y se leería como "no casa contigo".
+    porcv = {j["company"]: j for j in [_fila(r, cv_toks(kw2))
+                                      for r in db.search(c, kw2)]}
+    assert porcv["Nestlé"].get("anuncio") is True and porcv["Nestlé"]["hits"] == []
+    assert "anuncio" not in porcv["Tacto"], "la que casa en el título no la lleva"
+    assert encaje(c, db.get(c, 1), "", frozenset()) is None, "sin CV no hay encaje"
+    assert "score" not in _fila(db.get(c, 1)), "el bm25 crudo ya no sale a pantalla"
+    assert _fila(db.get(c, 1), cv_toks(kw2))["hits"] == ["ai", "automation"]
+    t = _target({"company": "BBVA", "role": "Beca Quant Finance · Madrid",
+                 "url": "u", "category": "🇪🇸 España · empresas top"})
+    assert (t["city"], t["country"]) == ("Madrid", "Spain"), t
+    t = _target({"company": "TEC", "role": "AIT Intern · Munich, Germany",
+                 "url": "u", "category": "🇪🇺 Europa · empresas con buen nombre"})
+    assert (t["city"], t["country"]) == ("Munich", "Germany"), t
+    t = _target({"company": "N26", "role": "Software Intern", "url": "u",
+                 "category": "🇪🇺 Europa · empresas con buen nombre"})
+    assert (t["city"], t["country"]) == ("", ""), t   # sin país: lo deduce la JD
+    # --- "Preparar mi solicitud" sin night-apply: el prompt ---
+    c3 = db.connect(":memory:")
+    db.upsert(c3, [{"key": "p1", "company": "Alantra",
+                    "role": "Quant Intern · Madrid", "url": "https://x.test/1"}])
+    fila = db.get(c3, 1)
+    pr = prompt_aplicar(fila, "## SKILLS\npython", " Buscamos alguien con Python. ")
+    assert "Empresa: Alantra" in pr and "Enlace: https://x.test/1" in pr, pr
+    # La ubicación va en su línea y no repetida en el puesto.
+    assert "Puesto: Quant Intern\n" in pr and "Ubicación: Madrid" in pr, pr
+    assert "Buscamos alguien con Python." in pr and pr.endswith("## SKILLS\npython")
+    # Sin anuncio leído se DICE, y con el enlace delante: quien pega el prompt
+    # tiene que saber que Claude no ha visto la oferta.
+    pr = prompt_aplicar(fila, "mi cv", "")
+    assert "No tengo el texto del anuncio" in pr and "https://x.test/1" in pr, pr
+    db.upsert(c3, [{"key": "p2", "company": "Curada", "role": "Beca"}])
+    pr = prompt_aplicar(db.get(c3, 2), "mi cv")
+    assert "ni enlace" in pr and "Ubicación" not in pr, pr
+    # El config elige el camino. Se falsea _night() para probar los dos
+    # casos sin night-apply: sin configurar, y configurado pero no está.
+    real = globals()["_night"]
+    for falso_night in (None, Path("/no/existe/night-apply")):
+        globals()["_night"] = lambda f=falso_night: f
         assert modo_aplicar() == "prompt"
         assert "prompt" in prepare(fila, "mi cv"), "sin night-apply, un prompt"
         assert "dossier" not in prepare(fila, "mi cv"), \
             "y sin dossier: es la clave por la que el POST decide NO marcarla preparada"
         assert prepare(fila, "")["error"].startswith("todavía no has puesto tu CV")
-        globals()["NIGHT"] = real
-        assert modo_aplicar() == ("local" if NIGHT.exists() else "prompt")
-        yes = ["ML Research Intern - Summer 2027", "Beca de verano · Madrid",
-               "KPMG Blue Summer Experience · programa de verano"]
-        no = ["Software Engineer Intern · Munich", "Trainee - 6 months from September",
-              "Summerfield Analyst"]           # 'summer' pegado a otra palabra no cuenta
-        assert all(SUMMER.search(r) for r in yes), yes
-        assert not any(SUMMER.search(r) for r in no), no
-        # La categoría tiene que escribirse igual en los dos ficheros: si no, la
-        # pestaña de spring weeks sale vacía sin dar ningún error. `ingesta` vive
-        # en este repo, así que esta comprobación corre en cualquier máquina.
-        import ingesta
-        assert ingesta.INSIGHT_CAT == INSIGHT_CAT, (ingesta.INSIGHT_CAT, INSIGHT_CAT)
-        # Y ninguna puede decir "verano" en el título: el email se queda solo con
-        # lo que casa con _SUMMER, así que ese es el segundo cinturón por si algún
-        # día se cuela una fila de spring week en las que van al correo.
-        assert not any(SUMMER.search(r) for _, r, _ in ingesta.INSIGHT_PROGRAMS), \
-            "una spring week dice 'verano' en el título: acabaría en el email"
-        # La ingesta privada de Nacho (job_boards.py) escribe en la MISMA base,
-        # así que su categoría también tiene que cuadrar. Solo donde exista: es
-        # suya y no viaja con el repo.
-        if BOARDS.exists():
-            sys.path.insert(0, str(BOARDS))
-            import job_boards
-            assert job_boards.INSIGHT_CAT == INSIGHT_CAT, (job_boards.INSIGHT_CAT, INSIGHT_CAT)
-            assert not any(SUMMER.search(r) for _, r, _ in job_boards.INSIGHT_PROGRAMS), \
-                "una spring week dice 'verano' en el título: acabaría en el email"
-        # --- pestaña Hoy ---
-        # El CV se pone a mano en la base: la lista corta solo existe si hay CV,
-        # y esperar a que `seed_cv` encuentre el master CV en el disco ataría
-        # estos asserts al Mac de Nacho (donde pasaban) y los dejaría sin
-        # comprobar nada en cualquier otro (donde salían vacíos y pasaban igual).
-        CV_TEST = "## SKILLS\n- python, sql, ai\n"
-        c = db.connect(":memory:")
-        db.set_cv(c, CV_TEST)
-        db.upsert(c, [{"key": "n1", "company": "Celonis", "role": "AI Intern · Madrid"}],
-                  category="🇪🇺 Europa · empresas con buen nombre")
-        db.upsert(c, [{"key": "s1", "company": "JP Morgan", "role": "Spring Week · London"}],
-                  category=INSIGHT_CAT)
-        d = hoy(c)
-        assert d["marcado"] is False, "sin marca todavía"
-        assert [j["company"] for j in d["nuevas"]] == ["Celonis"],             "las spring weeks tienen pestaña propia: fuera de Hoy"
-        assert d["curso"] == [], "nada movido todavía"
-        # Marcar visto vacía "Nuevas": es el único sitio donde la app recuerda
-        # por dónde ibas.
-        db.set_seen(c)
-        assert hoy(c)["nuevas"] == [] and hoy(c)["marcado"] is True
-        jid = d["nuevas"][0]["id"]
-        db.set_status(c, jid, "enviada")
-        assert [j["company"] for j in hoy(c)["curso"]] == ["Celonis"]
-        assert jid not in {j["id"] for j in hoy(c)["sugeridas"]},             "lo que ya estás moviendo no se recomienda otra vez"
-        # Y una oferta que la ingesta no ve desde hace días no se recomienda:
-        # la lista corta es para actuar hoy.
-        c.execute("UPDATE jobs SET last_seen='2020-01-01T00:00:00+00:00'")
-        c.commit()
-        assert hoy(c)["sugeridas"] == [], "una oferta rancia no entra en la lista corta"
-        # Y EE. UU. no adelanta a Europa en la lista corta. La de Redmond casa
-        # MEJOR con el CV a propósito (repite términos): con bm25 a secas salía
-        # la primera, que es justo lo que pasaba con Microsoft y DRW.
-        c2 = db.connect(":memory:")
-        db.set_cv(c2, CV_TEST)
-        db.upsert(c2, [{"key": "eu", "company": "Alantra",
-                        "role": "Python Intern · Madrid"}],
-                  category="🇪🇺 Europa · empresas con buen nombre")
-        db.upsert(c2, [{"key": "us", "company": "Microsoft",
-                        "role": "Python Python SQL Intern · Redmond, WA"}],
-                  category=US_CAT)
-        # Sin marca de visto las dos serían "Nuevas" y la lista corta iría vacía:
-        # `desde` y el tope de rancia son el mismo día (HOY_D == RANCIA_D).
-        db.set_seen(c2)
-        orden = [j["company"] for j in hoy(c2)["sugeridas"]]
-        assert orden == ["Alantra", "Microsoft"], \
-            f"EE. UU. es 'un vistazo': no adelanta a Europa en la lista corta: {orden}"
-        # --- tailnet: qué IP cuenta como "mi red privada" y cuál no ---
-        muestra = ("\tinet 192.168.1.40 netmask 0xffffff00\n"
-                   "\tinet 100.101.102.103 --> 100.101.102.103 netmask 0xff000000\n")
-        assert _TAILNET.search(muestra).group(1) == "100.101.102.103"
-        assert not _TAILNET.search("\tinet 100.200.1.1 netmask 0xff000000"), \
-            "100.200 está fuera del rango CGNAT: no es una IP de tailnet"
-        assert not _TAILNET.search("\tinet 10.0.0.5 netmask 0xff000000"), \
-            "una IP de wifi normal no puede confundirse con la tailnet"
-        assert radar_url().startswith("http://"), radar_url()
-        # --- lo que el servidor deja bajar del disco ---
-        # De verdad, con un servidor levantado: es un control de seguridad, y la
-        # forma de que se caiga es que alguien "arregle" el 404 sin saber que
-        # `jobs.db` (tu CV dentro) está en esta misma carpeta.
-        import urllib.error
-        import urllib.request
-        srv = ThreadingHTTPServer(("127.0.0.1", 0), Radar)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
-        base = "http://127.0.0.1:%d" % srv.server_address[1]
+    globals()["_night"] = real
+    # Y de serie (config.example.json) night-apply está apagado.
+    assert json.loads((HERE / "config.example.json").read_text())["night_apply"] == ""
+    yes = ["ML Research Intern - Summer 2027", "Beca de verano · Madrid",
+           "KPMG Blue Summer Experience · programa de verano"]
+    no = ["Software Engineer Intern · Munich", "Trainee - 6 months from September",
+          "Summerfield Analyst"]           # 'summer' pegado a otra palabra no cuenta
+    assert all(SUMMER.search(r) for r in yes), yes
+    assert not any(SUMMER.search(r) for r in no), no
+    # La categoría tiene que escribirse igual en los dos ficheros: si no, la
+    # pestaña de spring weeks sale vacía sin dar ningún error. `ingesta` vive
+    # en este repo, así que esta comprobación corre en cualquier máquina.
+    import ingesta
+    assert ingesta.INSIGHT_CAT == INSIGHT_CAT, (ingesta.INSIGHT_CAT, INSIGHT_CAT)
+    # Y ninguna puede decir "verano" en el título: el email se queda solo con
+    # lo que casa con _SUMMER, así que ese es el segundo cinturón por si algún
+    # día se cuela una fila de spring week en las que van al correo.
+    assert not any(SUMMER.search(r) for _, r, _ in ingesta.INSIGHT_PROGRAMS), \
+        "una spring week dice 'verano' en el título: acabaría en el email"
+    # --- pestaña Hoy ---
+    # El CV se pone a mano en la base: la lista corta solo existe si hay CV,
+    # y esperar a que `seed_cv` encuentre un cv.md en el disco ataría estos
+    # asserts a la máquina donde se corren.
+    CV_TEST = "## SKILLS\n- python, sql, ai\n"
+    c = db.connect(":memory:")
+    db.set_cv(c, CV_TEST)
+    db.upsert(c, [{"key": "n1", "company": "Celonis", "role": "AI Intern · Madrid"}],
+              category="🇪🇺 Europa · empresas con buen nombre")
+    db.upsert(c, [{"key": "s1", "company": "JP Morgan", "role": "Spring Week · London"}],
+              category=INSIGHT_CAT)
+    d = hoy(c)
+    assert d["marcado"] is False, "sin marca todavía"
+    assert [j["company"] for j in d["nuevas"]] == ["Celonis"],             "las spring weeks tienen pestaña propia: fuera de Hoy"
+    assert d["curso"] == [], "nada movido todavía"
+    # Marcar visto vacía "Nuevas": es el único sitio donde la app recuerda
+    # por dónde ibas.
+    db.set_seen(c)
+    assert hoy(c)["nuevas"] == [] and hoy(c)["marcado"] is True
+    jid = d["nuevas"][0]["id"]
+    db.set_status(c, jid, "enviada")
+    assert [j["company"] for j in hoy(c)["curso"]] == ["Celonis"]
+    assert jid not in {j["id"] for j in hoy(c)["sugeridas"]},             "lo que ya estás moviendo no se recomienda otra vez"
+    # Y una oferta que la ingesta no ve desde hace días no se recomienda:
+    # la lista corta es para actuar hoy.
+    c.execute("UPDATE jobs SET last_seen='2020-01-01T00:00:00+00:00'")
+    c.commit()
+    assert hoy(c)["sugeridas"] == [], "una oferta rancia no entra en la lista corta"
+    # Y EE. UU. no adelanta a Europa en la lista corta. La de Redmond casa
+    # MEJOR con el CV a propósito (repite términos): con bm25 a secas salía
+    # la primera, que es justo lo que pasaba con Microsoft y DRW.
+    c2 = db.connect(":memory:")
+    db.set_cv(c2, CV_TEST)
+    db.upsert(c2, [{"key": "eu", "company": "Alantra",
+                    "role": "Python Intern · Madrid"}],
+              category="🇪🇺 Europa · empresas con buen nombre")
+    db.upsert(c2, [{"key": "us", "company": "Microsoft",
+                    "role": "Python Python SQL Intern · Redmond, WA"}],
+              category=US_CAT)
+    # Sin marca de visto las dos serían "Nuevas" y la lista corta iría vacía:
+    # `desde` y el tope de rancia son el mismo día (HOY_D == RANCIA_D).
+    db.set_seen(c2)
+    orden = [j["company"] for j in hoy(c2)["sugeridas"]]
+    assert orden == ["Alantra", "Microsoft"], \
+        f"EE. UU. es 'un vistazo': no adelanta a Europa en la lista corta: {orden}"
+    # --- tailnet: qué IP cuenta como "mi red privada" y cuál no ---
+    muestra = ("\tinet 192.168.1.40 netmask 0xffffff00\n"
+               "\tinet 100.101.102.103 --> 100.101.102.103 netmask 0xff000000\n")
+    assert _TAILNET.search(muestra).group(1) == "100.101.102.103"
+    assert not _TAILNET.search("\tinet 100.200.1.1 netmask 0xff000000"), \
+        "100.200 está fuera del rango CGNAT: no es una IP de tailnet"
+    assert not _TAILNET.search("\tinet 10.0.0.5 netmask 0xff000000"), \
+        "una IP de wifi normal no puede confundirse con la tailnet"
+    assert radar_url().startswith("http://"), radar_url()
+    # --- lo que el servidor deja bajar del disco ---
+    # De verdad, con un servidor levantado: es un control de seguridad, y la
+    # forma de que se caiga es que alguien "arregle" el 404 sin saber que
+    # `jobs.db` (tu CV dentro) está en esta misma carpeta.
+    import urllib.error
+    import urllib.request
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Radar)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = "http://127.0.0.1:%d" % srv.server_address[1]
+    try:
+        assert b"<title>" in urllib.request.urlopen(base + "/", timeout=5).read(), \
+            "el html sí se sirve"
+        # Y un POST desde otra web se para ANTES de tocar la base.
+        req = urllib.request.Request(base + "/api/profile", data=b"{}",
+                                     headers={"Origin": "https://evil.example"})
         try:
-            assert b"<title>" in urllib.request.urlopen(base + "/", timeout=5).read(), \
-                "el html sí se sirve"
-            # Y un POST desde otra web se para ANTES de tocar la base.
-            req = urllib.request.Request(base + "/api/profile", data=b"{}",
-                                         headers={"Origin": "https://evil.example"})
+            urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as e:
+            assert e.code == 403, e.code
+        else:
+            raise AssertionError("una web cualquiera puede pisarte el CV")
+        for ruta in ("/jobs.db", "/config.json", "/app.py", "/radar.log", "/docs/"):
             try:
-                urllib.request.urlopen(req, timeout=5)
+                urllib.request.urlopen(base + ruta, timeout=5)
             except urllib.error.HTTPError as e:
-                assert e.code == 403, e.code
+                assert e.code == 404, (ruta, e.code)
             else:
-                raise AssertionError("una web cualquiera puede pisarte el CV")
-            for ruta in ("/jobs.db", "/config.json", "/app.py", "/radar.log", "/docs/"):
-                try:
-                    urllib.request.urlopen(base + ruta, timeout=5)
-                except urllib.error.HTTPError as e:
-                    assert e.code == 404, (ruta, e.code)
-                else:
-                    raise AssertionError("%s se está sirviendo: la carpeta lleva "
-                                         "dentro la base y el config" % ruta)
-        finally:
-            srv.shutdown()
-        print("ok — keywords del master CV, encaje legible, target de Aplicar, "
-              "prompt de Aplicar sin night-apply, filtro de verano, categoría de "
-              "spring weeks, pestaña Hoy, detección de tailnet y lista blanca "
-              "de estáticos")
-        raise SystemExit
+                raise AssertionError("%s se está sirviendo: la carpeta lleva "
+                                     "dentro la base y el config" % ruta)
+        # Host ajeno (DNS rebinding): fuera, aunque llegue a 127.0.0.1.
+        Radar.HOSTS = _hosts(srv.server_address[1])
+        try:
+            urllib.request.urlopen(urllib.request.Request(
+                base + "/", headers={"Host": "evil.example"}), timeout=5)
+        except urllib.error.HTTPError as e:
+            assert e.code == 403, e.code
+        else:
+            raise AssertionError("un Host ajeno llega a la API")
+        assert urllib.request.urlopen(base + "/", timeout=5).status == 200
+    finally:
+        Radar.HOSTS = None
+        srv.shutdown()
+    print("ok — keywords del CV, encaje legible, target de Aplicar, "
+          "prompt de Aplicar sin night-apply, filtro de verano, categoría de "
+          "spring weeks, pestaña Hoy, detección de tailnet y lista blanca "
+          "de estáticos, chequeo de Host")
+
+
+def _hosts(port, *extra):
+    """Los Host con los que se puede llegar a este servidor (ver Radar.HOSTS)."""
+    return {f"127.0.0.1:{port}", f"localhost:{port}", *extra}
+
+
+def servidor():
+    """El servidor de siempre (repo + launchd): puerto 8000, sin ventana."""
+    Radar.HOSTS = _hosts(PORT)
+
     # Threading porque Aplicar tarda 1-2 min: con un solo hilo la app entera se
     # queda congelada mientras claude piensa.
     def _sirve(host):
@@ -980,6 +1108,9 @@ if __name__ == "__main__":
                 try:
                     _sirve(ip)
                     activos.add(ip)
+                    # El móvil llega con la IP o con el nombre MagicDNS.
+                    nombre = urlparse(radar_url()).netloc
+                    Radar.HOSTS = Radar.HOSTS | {f"{ip}:{PORT}", nombre}
                     print(f"Radar en tu tailnet → {radar_url()}")
                 except OSError as e:                 # IP recién retirada, o puerto
                     print(f"tailnet {ip}: {e}")      # ocupado: se reintenta luego
@@ -988,3 +1119,166 @@ if __name__ == "__main__":
     threading.Thread(target=_vigila_tailnet, daemon=True).start()
     while True:                                      # los servidores van en hilos
         time.sleep(3600)
+
+
+def _arranca():
+    """Servidor en 127.0.0.1 y un puerto libre (0): dos Radar abiertos, o el
+    agente de launchd en el 8000, no se pisan. Devuelve (servidor, puerto)."""
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Radar)
+    port = srv.server_address[1]
+    Radar.HOSTS = _hosts(port)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, port
+
+
+def app_mac():
+    """Radar.app: ventana propia (pywebview) sobre el servidor local. Sin
+    launchd: la ingesta corre al abrir, si toca. Al cerrar la ventana sale el
+    proceso entero, con sus hilos."""
+    import webview
+    if getattr(sys, "frozen", False):
+        # Sin terminal: lo que se imprima va a radar.log, en la carpeta de datos.
+        sys.stdout = sys.stderr = open(DATA / "radar.log", "a", buffering=1, encoding="utf-8")
+    _srv, port = _arranca()
+    ingesta_si_toca()
+    win = webview.create_window("Radar", f"http://127.0.0.1:{port}/", width=1240, height=860,
+                                min_size=(820, 600), text_select=True)
+    # Cerrar la ventana = salir. pywebview para el bucle de Cocoa con stop_(),
+    # que no surte efecto hasta que llega OTRO evento: sin esto el proceso se
+    # quedaba vivo y sin ventana (comprobado con la app empaquetada).
+    win.events.closed += lambda: os._exit(0)
+    webview.start(private_mode=False, storage_path=str(DATA / "webview"))
+    os._exit(0)
+
+
+def selftest():
+    """--selftest: sin ventana y sin intervención. Escribe DATA/selftest.json y
+    sale con 0 si todo pasa. DATA es una carpeta temporal (o RADAR_DATA).
+
+      1. El servidor contesta en 127.0.0.1 (puerto libre): / da 200 con el HTML.
+      2. Un Host ajeno (DNS rebinding) recibe 403, y /jobs.db sigue en 404.
+      3. La pasada de la app en segundo plano (la de la primera vez) con la
+         fuente sin red ("programas") llena el catálogo y la barra la ve pasar.
+      4. Ingesta de verdad contra 2 tableros pequeños (red real). Sin red se
+         anota "sin red" y no cuenta como fallo.
+      5. Se pega un CV inventado por la API (como la pestaña Mi CV) y "Para ti"
+         ordena con FTS5 y dice qué palabras casan.
+      6. descr.rellena() corre en un hilo (como en la app) sin romper.
+      7. Todo lo escrito está dentro de DATA."""
+    import urllib.error
+    import urllib.request
+    r, t0 = {"data": str(DATA)}, time.time()
+    srv, port = _arranca()
+    base = f"http://127.0.0.1:{port}"
+
+    def pide(ruta, host=None, data=None):
+        h = {"Host": host} if host else {}
+        if data is not None:
+            h.update({"Origin": base, "Content-Type": "application/json"})
+        req = urllib.request.Request(base + ruta, data=data, headers=h)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return resp.status, resp.read()
+        except urllib.error.HTTPError as e:
+            return e.code, b""
+
+    try:
+        st, body = pide("/")
+        r["raiz"] = {"status": st, "html": b"<title>" in body}
+        r["host_falso"] = pide("/api/hoy", host=f"evil.example:{port}")[0]
+        r["host_falso_post"] = pide("/api/profile", host="evil.example", data=b'{"cv":"x"}')[0]
+        r["jobs_db"] = pide("/jobs.db")[0]
+
+        # 3. La pasada de la primera vez, en su hilo, y la barra viéndola.
+        conn = db.connect()
+        r["toca_al_abrir"] = toca_ingesta(conn)
+        conn.close()
+        visto = []
+        hilo = threading.Thread(target=_pasada, args=(["--solo", "programas"], True, False))
+        hilo.start()
+        while hilo.is_alive():
+            visto.append(json.loads(pide("/api/salud")[1])["ingesta"]["corriendo"])
+            time.sleep(0.05)
+        hilo.join()
+        fin = json.loads(pide("/api/hoy")[1])
+        r["primera_pasada"] = {"visto_corriendo": any(visto), "al_final": fin["salud"]["ingesta"],
+                               "ofertas": fin["total"]}
+
+        # 4. Red real, 2 tableros pequeños de Greenhouse.
+        cfg = ingesta.cargar_config()
+        f = ingesta.configurar(cfg)
+        specs = [d for d in ingesta.DIRECT_EU if d["company"] in ("Cabify", "Tide")][:2] \
+            or [d for d in ingesta.DIRECT_EU if "gh" in d][:2]
+        filas = ingesta._fuentes_directas(specs, ingesta.EU_CAT, "eu", f)
+        nuevas, total = ingesta.guardar(filas)
+        r["ingesta_red"] = {"tableros": [{"empresa": x["company"], "ok": bool(x["ok"]),
+                                          "ofertas": len(x["offers"]), "error": x["err"][:60]}
+                                         for x in filas],
+                            "nuevas": nuevas, "total": total}
+        # "Sin red" es no llegar; un certificado que no se puede verificar SÍ es
+        # un fallo (el Python de python.org sin certifi), y no se disimula.
+        r["sin_red"] = not any(x["ok"] for x in filas) and \
+            not any("CERTIFICATE" in x["err"] for x in filas)
+
+        # 5. CV inventado + FTS5. Una oferta inventada asegura algo que casar.
+        conn = db.connect()
+        db.upsert(conn, [{"key": "selftest-1", "company": "Ejemplo SA",
+                          "role": "Python Data Analyst Intern · Madrid", "url": "https://example.com/1"}],
+                  category="🇪🇺 Europa · empresas con buen nombre")
+        conn.close()
+        cv = "## SKILLS\n- python, sql, data, analyst, excel\n## INTERESTS\n- consulting, finance\n"
+        r["cv_post"] = pide("/api/profile", data=json.dumps({"cv": cv}).encode())[0]
+        d = json.loads(pide("/api/jobs?q=&mine=1")[1])
+        top = d["jobs"][0] if d["jobs"] else {}
+        r["para_ti"] = {"n": len(d["jobs"]), "primera": top.get("role"), "casa_en": top.get("hits")}
+        r["busqueda"] = len(json.loads(pide("/api/jobs?q=python")[1])["jobs"])
+
+        # 6. Anuncios en un hilo (la alarma de descr no puede usarse fuera del principal).
+        res = {}
+        def _d():
+            c = db.connect()
+            try:
+                res.update(descr.rellena(c, limite=2, presupuesto=60, ruido=False))
+            except Exception as e:                 # noqa: BLE001
+                res["error"] = f"{type(e).__name__}: {e}"
+            finally:
+                c.close()
+        h = threading.Thread(target=_d)
+        h.start()
+        h.join(120)
+        r["descr_hilo"] = res
+    except Exception as e:                         # noqa: BLE001
+        r["exception"] = f"{type(e).__name__}: {e}"
+    finally:
+        srv.shutdown()
+    r["ficheros"] = sorted(str(x.relative_to(DATA)) for x in DATA.rglob("*"))
+    r["secs"] = round(time.time() - t0, 1)
+    pt = r.get("para_ti") or {}
+    r["ok"] = {
+        "raiz_200": r.get("raiz") == {"status": 200, "html": True},
+        "host_falso_403": r.get("host_falso") == 403 and r.get("host_falso_post") == 403,
+        "jobs_db_404": r.get("jobs_db") == 404,
+        "primera_pasada": r.get("toca_al_abrir") == "primera"
+        and (r.get("primera_pasada") or {}).get("visto_corriendo") is True
+        and (r.get("primera_pasada") or {}).get("ofertas", 0) > 0
+        and not (r.get("primera_pasada") or {}).get("al_final", {}).get("corriendo", True),
+        "ingesta_red": bool(r.get("sin_red")) or any(x["ok"] for x in r["ingesta_red"]["tableros"]),
+        "fts5_cv": r.get("cv_post") == 200 and pt.get("n", 0) > 0 and bool(pt.get("casa_en")),
+        "descr_hilo": "error" not in r.get("descr_hilo", {"error": 1}),
+        "sin_excepcion": "exception" not in r,
+    }
+    r["todo_ok"] = all(r["ok"].values())
+    (DATA / "selftest.json").write_text(json.dumps(r, ensure_ascii=False, indent=1))
+    print(json.dumps(r, ensure_ascii=False, indent=1))
+    return 0 if r["todo_ok"] else 1
+
+
+if __name__ == "__main__":
+    if "--check" in sys.argv:
+        _check()
+    elif "--selftest" in sys.argv:
+        sys.exit(selftest())
+    elif "--app" in sys.argv or getattr(sys, "frozen", False):
+        app_mac()
+    else:
+        servidor()

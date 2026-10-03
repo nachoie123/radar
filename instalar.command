@@ -79,26 +79,11 @@ then
 fi
 
 # ---- etiquetas de los agentes ----------------------------------------------
-# Nombre público por defecto. Si en este Mac ya vive un agente con el nombre
-# viejo (el de Nacho), se conserva ESE: instalar no es momento de renombrar
-# nada, y dos agentes distintos peleándose por el puerto 8000 sería peor.
 LA="$HOME/Library/LaunchAgents"
 mkdir -p "$LA"
-label_para() {  # $1 = etiqueta nueva, $2 = etiqueta antigua a respetar si existe
-  if [[ -f "$LA/$2.plist" ]]; then echo "$2"; else echo "$1"; fi
-}
-L_APP="$(label_para com.radar.app com.nacho.radar)"
-L_DESCR="$(label_para com.radar.descr com.nacho.radardescr)"
+L_APP="com.radar.app"
+L_DESCR="com.radar.descr"
 L_ING="com.radar.ingesta"
-
-# La ingesta pública se salta el Mac que ya tiene la privada (~/Projects/
-# job-boards): las dos escriben en la misma base y la llenarían por duplicado.
-INSTALA_ING=1
-if [[ -d "$HOME/Projects/job-boards" ]]; then
-  INSTALA_ING=0
-  echo "aviso: veo ~/Projects/job-boards (la ingesta privada). No instalo la"
-  echo "       ingesta nocturna de este repo para no duplicar la pasada."
-fi
 
 # ---- rellenar y cargar ------------------------------------------------------
 instala() {  # $1 = plantilla, $2 = etiqueta
@@ -117,7 +102,7 @@ instala() {  # $1 = plantilla, $2 = etiqueta
 
 instala radar.plist.plantilla       "$L_APP"   || exit 1
 instala radar-descr.plist.plantilla "$L_DESCR" || exit 1
-[[ $INSTALA_ING == 1 ]] && { instala radar-ingesta.plist.plantilla "$L_ING" || exit 1 }
+instala radar-ingesta.plist.plantilla "$L_ING" || exit 1
 
 # Radar.command necesita saber qué etiqueta acabó teniendo el servidor.
 echo "$L_APP" > .radar-label

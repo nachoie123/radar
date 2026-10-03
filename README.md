@@ -62,6 +62,15 @@ chmod +x *.command          # first time only
 ./instalar.command
 ```
 
+**macOS app** — `./build.sh && tools/dmg.sh` builds `dist/Radar.dmg`: a
+universal (Apple Silicon + Intel) Radar.app with its own window. No launchd and
+no Python needed: the first launch fills the catalogue in the background (about
+five minutes, with a progress bar), and later launches refresh it when the last
+pass is more than 12 hours old. Its data lives in
+`~/Library/Application Support/Radar/`. The app is not notarized, so macOS asks
+once (System Settings › Privacy & Security › Open Anyway).
+`tools/seguridad.py` checks every build and writes `tools/seguridad.md`.
+
 **Linux / Windows** — no launchd, so the two commands are yours to schedule:
 
 ```bash
@@ -77,7 +86,8 @@ at all, and the installer stops and tells you how to fix that before it becomes
 
 ## Configure it for you
 
-Copy `config.example.json` to `config.json` and edit it. The example *is* the
+Copy `config.example.json` to `config.json` (next to the code, or in
+`~/Library/Application Support/Radar/` for the app) and edit it. The example *is* the
 default, so Radar works before you write anything:
 
 ```jsonc

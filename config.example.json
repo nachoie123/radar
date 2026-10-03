@@ -10,7 +10,9 @@
     "empresas_top_extra": "Se AÑADE a la lista de serie. Aquí van las tuyas.",
     "github_solo_top": "true = de los tableros de GitHub (EE. UU., miles de ofertas) solo entran tus empresas top.",
     "max_seconds": "Techo de reloj de la pasada entera, en segundos.",
-    "github_token": "Opcional. Un token de solo lectura sube el límite de la API de GitHub. Sin él también funciona."
+    "github_token": "Opcional. Un token de solo lectura sube el límite de la API de GitHub. Sin él también funciona.",
+    "night_apply": "Opcional. Carpeta de una instalación de night-apply (tailor() + render_pdf()). Vacío = 'Preparar mi solicitud' te da el prompt para pegarlo en Claude.",
+    "heartbeat": "Opcional. Carpeta de un vigilante de crons con heartbeat.py, para que descr.py deje latido. Vacío = desactivado."
   },
 
   "grad_year": 2030,
@@ -23,5 +25,7 @@
   "empresas_top_extra": [],
   "github_solo_top": true,
   "max_seconds": 900,
-  "github_token": ""
+  "github_token": "",
+  "night_apply": "",
+  "heartbeat": ""
 }

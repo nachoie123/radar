@@ -221,6 +221,11 @@
   #salud p { margin:0; padding:9px var(--s4); border-radius:10px; font-size:14px;
              background:var(--muted); border:1px solid var(--warn); color:var(--fg) }
   #salud a { color:var(--pri); font-weight:600 }
+  /* La ingesta en marcha (Radar.app la lanza al abrir): no es un aviso, así que
+     va con el borde del resto de tarjetas y no con el rojo. */
+  #salud p.llenando { border-color:var(--line); background:var(--card) }
+  #salud progress { display:block; width:100%; height:6px; margin-top:var(--s2);
+                    accent-color:var(--pri) }
 </style>
 
 <header>
@@ -343,11 +348,40 @@ function jobHTML(j, showCompany = true, meta = true, metaTxt = null) {
 function pintaSalud(s) {
   const box = $("#salud");
   const avisos = (s && s.avisos) || [];
-  box.classList.toggle("hay", avisos.length > 0);
+  const ing = (s && s.ingesta) || {};
   // href() y no esc(): mismo criterio que las URLs scrapeadas — al href solo
   // llega http(s), nunca un javascript:.
-  box.innerHTML = avisos.map(a => `<p>⚠️ ${esc(a.txt)}${href(a.url)
+  let html = avisos.map(a => `<p>⚠️ ${esc(a.txt)}${href(a.url)
     ? ` <a href="${href(a.url)}" target="_blank" rel="noopener">Abrir el portal →</a>` : ""}</p>`).join("");
+  // La pasada que lanza Radar.app al abrir (app.py: _pasada). La primera vez el
+  // catálogo está vacío y sin esto la app parecería rota durante 5 minutos.
+  if (ing.corriendo) {
+    const txt = ing.fase === "anuncios"
+      ? (ing.primera ? "Catálogo listo. Ahora leo el texto de los anuncios en segundo plano: ya puedes usar Radar."
+                     : "Leyendo los anuncios nuevos en segundo plano…")
+      : (ing.primera ? "Llenando el catálogo por primera vez (unos 5 minutos). Deja la ventana abierta."
+                     : "Poniendo el catálogo al día en segundo plano…");
+    const n = ing.fase === "ofertas" && ing.total ? ` ${ing.hechas} de ${ing.total} fuentes.` : "";
+    html += `<p class="llenando">${esc(txt + n)}${ing.fase === "ofertas"
+      ? `<progress ${ing.total ? `max="${ing.total}" value="${ing.hechas}"` : ""}></progress>` : ""}</p>`;
+    if (!sondeo) sondeo = setInterval(vigila, 2000);
+  }
+  if (ing.error) html += `<p>⚠️ ${esc("La última actualización falló: " + ing.error)}</p>`;
+  box.classList.toggle("hay", !!html);
+  box.innerHTML = html;
+}
+
+// Mientras corre la ingesta se pregunta cada 2 s. Al acabar la fase de ofertas
+// hay catálogo nuevo: se recargan las empresas (y sus chips) y se repinta.
+let sondeo = null, fase = null;
+async function vigila() {
+  let s;
+  try { s = await (await fetch("/api/salud")).json(); } catch (err) { return; }
+  const ing = s.ingesta || {};
+  if (fase === "ofertas" && ing.fase !== "ofertas") cargaEmpresas().then(render);
+  fase = ing.fase;
+  pintaSalud(s);
+  if (!ing.corriendo) { clearInterval(sondeo); sondeo = null; }
 }
 
 async function render() {
@@ -446,12 +480,14 @@ const seccion = (titulo, sub, jobs, vacio, extra = "", metaFn = null) => `<secti
 async function renderHoy() {
   const d = await (await fetch("/api/hoy")).json();
   pintaSalud(d.salud);
-  $("#count").textContent = `${d.total} ofertas · catálogo de ${fechaCorta(d.salud.hasta)}`;
+  // Catálogo vacío (Radar.app recién instalada): no hay fecha que enseñar.
+  $("#count").textContent = `${d.total} ofertas${d.salud.hasta ? ` · catálogo de ${fechaCorta(d.salud.hasta)}` : ""}`;
   const desde = d.marcado ? `desde tu última visita (${fechaCorta(d.desde)})`
                           : `de los últimos 3 días`;
   $("#view").innerHTML =
     seccion("Nuevas", desde, d.nuevas,
-            "Nada nuevo desde entonces. La ingesta corre cada noche a las 02:30.",
+            d.total ? "Nada nuevo desde entonces. El catálogo se pone al día solo (cada noche, o al abrir la app)."
+                    : "Todavía no hay ofertas: el catálogo se está llenando.",
             d.nuevas.length ? `<button class="visto" id="marcavisto">Marcar como vistas</button>`
                             : `<span class="n">0</span>`)
     + seccion("En curso", "candidaturas que has movido", d.curso,
@@ -717,9 +753,8 @@ async function renderJob(id) {
 // Un fetch que no llega al servidor tira "TypeError: Failed to fetch", que no
 // dice nada. Y en Radar la causa es casi siempre la misma: el servidor está
 // parado (un `launchctl bootout`, o el Mac recién arrancado). Se traduce.
-const CAIDO = "Radar no responde: el servidor está parado. Ábrelo con Radar.command "
-            + "o enciéndelo con: launchctl bootstrap gui/$(id -u) "
-            + "~/Library/LaunchAgents/com.nacho.radar.plist";
+const CAIDO = "Radar no responde: el servidor está parado. Vuelve a abrir Radar "
+            + "(la app, o Radar.command si lo usas desde el repo).";
 const errTxt = err => /Failed to fetch|NetworkError|Load failed/i.test(String(err))
   ? CAIDO : String(err);
 
@@ -813,7 +848,8 @@ $("#q").oninput = () => { clearTimeout(t); t = setTimeout(render, 150); };
 
 // Las categorías salen de los datos, no de una lista fija: si job_boards añade
 // una fuente nueva, el filtro aparece solo.
-fetch("/api/companies").then(r => r.json()).then(d => {
+async function cargaEmpresas() {
+  const d = await (await fetch("/api/companies")).json();
   empresas = d.companies;
   pintaSalud(d.salud);          // por si el arranque cae en una pestaña que no
                                 // trae salud propia (Empresas la trae de aquí).
@@ -821,8 +857,7 @@ fetch("/api/companies").then(r => r.json()).then(d => {
   // esconde, así que su chip solo podría devolver cero resultados.
   const cats = [...new Set(empresas.map(c => c.category))].filter(c => c !== INSIGHT_CAT).sort();
   $("#cats").innerHTML = [["", "Todas"], ...cats.map(c => [c, c])]
-    .map(([v, l]) => `<button data-c="${esc(v)}" aria-pressed="${v === ""}">${esc(l)}</button>`).join("");
-  readHash();
-  render();
-});
+    .map(([v, l]) => `<button data-c="${esc(v)}" aria-pressed="${v === cat}">${esc(l)}</button>`).join("");
+}
+cargaEmpresas().then(() => { readHash(); render(); });
 </script>

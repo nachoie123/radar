@@ -9,11 +9,11 @@ __pycache__/
 jobs.db.bak*
 *.bak-*
 
-# El log del servidor (agente com.nacho.radar): ruido local, cambia en cada
+# El log del servidor (agente com.radar.app): ruido local, cambia en cada
 # arranque y no dice nada que no diga el código.
 radar.log
 
-# El log del rellenador de anuncios (agente com.nacho.radardescr): mismo caso
+# El log del rellenador de anuncios (agente com.radar.descr): mismo caso
 # que radar.log.
 descr.log
 
@@ -37,3 +37,12 @@ ingesta.log
 # rama `publico`, que nace sin ellos, no los suba de vuelta.
 FASE5B.md
 PUBLICAR.md
+
+# Lo que genera build.sh (Radar.app y el .dmg) y su entorno.
+.venv/
+build/
+dist/
+# Lo que es de cada uno, en la carpeta de datos (aquí, desde el repo).
+cv.md
+selftest.json
+webview/

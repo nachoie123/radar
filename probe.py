@@ -4,7 +4,6 @@ Solo lectura de APIs públicas."""
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 
 import urllib.request
 
@@ -85,7 +84,7 @@ for ats, slug, tot, eu, it, ex_ in live:
     print(f"{ats:<6} {slug:<26} {tot:>5} {eu:>5} {it:>6}  {ex_}")
 print(f"\nvivos: {len(live)}/{len(res)}  ·  con becas: {sum(1 for r in live if r[4])}")
 
-# --save: deja los tableros CON becas en `descubiertos.json`, al lado del script,
+# --save: deja los tableros CON becas en `descubiertos.json`, en la carpeta de datos,
 # que es de donde ingesta.py los lee al arrancar para sumarlos a sus fuentes
 # directas. Así la lista de empresas crece sin editar código: el cron semanal
 # vuelve a probar los mismos slugs y recoge los que HOY dan 0 becas pero abren
@@ -106,10 +105,3 @@ if "--save" in sys.argv:
     blob = json.dumps(out, ensure_ascii=False, indent=1)
     ingesta.DESCUBIERTOS.write_text(blob)
     print(f"→ {len(out)} tableros con becas guardados en {ingesta.DESCUBIERTOS}")
-    # Y, si está, la copia que lee la ingesta privada de Nacho (job_boards.py,
-    # que la llama discovered.json). Escribir solo la de este repo dejaría su
-    # email nocturno sin tableros nuevos sin que nada lo dijera.
-    privada = Path.home() / "Projects" / "job-boards" / "discovered.json"
-    if privada.parent.is_dir():
-        privada.write_text(blob)
-        print(f"→ y la copia de la ingesta privada en {privada}")
