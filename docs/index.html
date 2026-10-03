@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radar</title>
+<meta name="description" content="A local internship board that fills itself every night from public job APIs, ranks openings against your CV with SQLite FTS5, and never asks for an API key.">
+<meta property="og:title" content="Radar — one list for every internship opening">
+<meta property="og:description" content="1,017 openings from 111 companies, ranked against your CV. Runs on your own machine: no account, no cloud, no API key.">
+<meta property="og:image" content="https://nachosanbenito.com/radar/poster.jpg">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#f0f9ff">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f0f9ff;--surface:#fff;--text:#0c4a6e;--muted:#47657a;--border:#bae6fd;--accent:#0369a1;--on-accent:#fff;--ok:#15803d;--code:#e7eff5}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1620;--surface:#10202c;--text:#e6f1f8;--muted:#93aec2;--border:#1e3648;--accent:#38bdf8;--on-accent:#04121b;--ok:#4ade80;--code:#162937}}
+  :root[data-theme="dark"]{--bg:#0b1620;--surface:#10202c;--text:#e6f1f8;--muted:#93aec2;--border:#1e3648;--accent:#38bdf8;--on-accent:#04121b;--ok:#4ade80;--code:#162937}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:17px/1.55 "Source Sans 3",-apple-system,sans-serif;overflow-x:hidden}
+  h1,h2,h3,.brand,.stat b{font-family:Lexend,-apple-system,sans-serif}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 16px 72px;position:relative}
+  /* the sweeping radar: one idea, pure CSS */
+  .radar{position:absolute;left:50%;top:-120px;width:1100px;height:1100px;margin-left:-550px;border-radius:50%;pointer-events:none;z-index:0;
+    background:repeating-radial-gradient(circle,transparent 0 109px,var(--border) 109px 111px);opacity:.7;
+    -webkit-mask-image:linear-gradient(#000 35%,transparent 70%);mask-image:linear-gradient(#000 35%,transparent 70%)}
+  .radar::after{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 300deg,color-mix(in srgb,var(--accent) 35%,transparent) 360deg);animation:sweep 6s linear infinite}
+  @keyframes sweep{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.radar::after{animation:none}}
+  main>*{position:relative;z-index:1}
+  .video video{width:100%;display:block;border-radius:20px;background:#0b1620;box-shadow:0 30px 80px rgb(3 105 161 / .28);aspect-ratio:16/9}
+  .intro{max-width:700px;margin:56px auto 0;text-align:center}
+  .brand{font-weight:700;font-size:20px;color:var(--accent);letter-spacing:-.01em}
+  h1{font-size:clamp(36px,6vw,60px);line-height:1.05;letter-spacing:-.03em;margin:14px 0 16px;font-weight:700}
+  h1 span{color:var(--accent)}
+  .lead{color:var(--muted);font-size:20px;margin:0 auto}
+  .cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:28px 0 10px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:14px 24px;border-radius:12px;font:600 17px Lexend,sans-serif;text-decoration:none}
+  .btn.main{background:var(--accent);color:var(--on-accent)}
+  .btn.ghost{border:2px solid var(--border);color:var(--text);background:var(--surface)}
+  .small{color:var(--muted);font-size:15px;margin:10px 0 0}
+  h2{font-size:28px;letter-spacing:-.02em;margin:72px 0 20px;font-weight:600}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+  .grid b{display:block;margin-bottom:6px;font-family:Lexend,sans-serif;font-weight:600}
+  .grid p{margin:0;color:var(--muted);font-size:16px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+  .stat{text-align:center}
+  .stat b{display:block;font-size:44px;line-height:1.1;color:var(--accent);letter-spacing:-.03em}
+  .stat span{color:var(--muted);font-size:15px}
+  ol.steps{list-style:none;padding:0;margin:0;display:grid;gap:12px;counter-reset:s}
+  ol.steps li{counter-increment:s;position:relative;padding:18px 20px 18px 64px}
+  ol.steps li::before{content:counter(s);position:absolute;left:20px;top:16px;width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--on-accent);font:700 16px Lexend,sans-serif;display:grid;place-items:center}
+  code,pre{font-family:ui-monospace,Menlo,monospace;font-size:14.5px}
+  pre{background:var(--code);border-radius:12px;padding:16px;overflow-x:auto;margin:14px 0 0}
+  :not(pre)>code{background:var(--code);padding:2px 6px;border-radius:6px}
+  .shots{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .shots img{width:100%;display:block;border-radius:12px;border:1px solid var(--border)}
+  .shots figcaption{color:var(--muted);font-size:14px;margin-top:8px}
+  .shots figure{margin:0}
+  @media (max-width:640px){.shots{grid-template-columns:1fr}}
+  .note{border-left:4px solid var(--accent)}
+  footer{margin-top:64px;color:var(--muted);font-size:14px;text-align:center}
+  footer a{color:inherit}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="radar" aria-hidden="true"></div>
+  <div class="video"><video src="radar-promo.mp4" poster="poster.jpg" controls playsinline preload="metadata"></video></div>
+
+  <section class="intro">
+    <div class="brand">Radar</div>
+    <h1>One list for every internship <span>opening.</span></h1>
+    <p class="lead">Radar reads the job boards companies already publish, keeps everything in a SQLite file on your disk, and ranks it against your CV. No account, no cloud, no API key.</p>
+    <div class="cta">
+      <a class="btn main" href="https://github.com/nachoie123/radar">View on GitHub</a>
+      <a class="btn ghost" href="#run">Run it yourself</a>
+    </div>
+    <p class="small">Free &amp; open source (MIT) · runs on your own computer · interface in Spanish</p>
+  </section>
+
+  <h2>Why it exists</h2>
+  <div class="card note">
+    <p style="margin:0">Internship listings live in a hundred career pages, each showing a different slice. Newsletters throw the data away after sending it. There was no single list, no memory of what you had already seen, and no way to ask <i>which of these actually match my CV?</i> Radar is that list, kept on your own disk.</p>
+  </div>
+
+  <h2>What it does</h2>
+  <div class="grid">
+    <div class="card"><b>Fills itself</b><p>Walks 89 company boards on public ATS APIs (Greenhouse, Lever, Ashby, Workday, SmartRecruiters and more) plus community GitHub boards. A first run takes about five minutes; after that, a nightly pass.</p></div>
+    <div class="card"><b>Ranks against your CV</b><p>SQLite FTS5 and <code>bm25()</code>. No model, no tokens, no network. Paste your CV once and the <i>Para ti</i> ("For you") tab is ordered by match, showing the terms that hit.</p></div>
+    <div class="card"><b>Reads the posting for you</b><p><code>descr.py</code> fetches the actual job description so you can judge a role without leaving the app. Postings that can't be read say why.</p></div>
+    <div class="card"><b>Europe first, by your rules</b><p>Filters by graduation year, summer-only, degree level and region (<code>es</code>, <code>uk</code>, <code>de</code>, <code>benelux</code>, <code>us</code>…), all set in one config file.</p></div>
+    <div class="card"><b>Tells you what's new</b><p>Shows what came in since your last visit and flags openings the source stopped confirming, instead of letting them rot in the list.</p></div>
+    <div class="card"><b>Prepares the application</b><p>One button builds a prompt with the posting and your CV inside. You paste it into any assistant; it tells you what to leave as <code>[COMPLETAR]</code> rather than invent.</p></div>
+  </div>
+
+  <h2>Real numbers from the author's database</h2>
+  <div class="stats">
+    <div class="card stat"><b>1,017</b><span>internship openings</span></div>
+    <div class="card stat"><b>111</b><span>companies</span></div>
+    <div class="card stat"><b>746</b><span>with the full posting text (73%)</span></div>
+    <div class="card stat"><b>0</b><span>accounts, API keys or pip installs</span></div>
+  </div>
+  <p class="small">Snapshot of the author's local catalogue, last refreshed 22 September 2026.</p>
+
+  <h2>What it looks like</h2>
+  <div class="shots">
+    <figure><img src="empresas-demo.jpg" alt="The Empresas tab: companies with their number of open internships" loading="lazy"><figcaption>Companies, by number of open internships.</figcaption></figure>
+    <figure><img src="parati-demo.jpg" alt="The Para ti tab: openings ranked by match with the CV" loading="lazy"><figcaption>"For you": ranked by how well each opening matches the CV.</figcaption></figure>
+  </div>
+
+  <h2>How it is put together</h2>
+  <ol class="steps">
+    <li class="card"><b>ingesta.py</b> walks the boards and writes through <code>db.upsert()</code>, nothing else. All standard library.</li>
+    <li class="card"><b>db.py + jobs.db</b>: every SQL statement in the project lives in one file; FTS5 lives inside <code>search()</code>.</li>
+    <li class="card"><b>app.py + index.html</b>: a Python <code>ThreadingHTTPServer</code> on <code>127.0.0.1</code> and one HTML file. Nothing is ever exposed to your network.</li>
+  </ol>
+
+  <h2 id="run">Run it yourself</h2>
+  <div class="card note">
+    <p style="margin:0"><b>There is no hosted demo, on purpose.</b> Radar holds your CV and your applications, so it runs on your machine at <code>http://localhost:8000</code> instead of on somebody's server. You need Python 3.9+ with SQLite FTS5, nothing else.</p>
+    <pre>git clone https://github.com/nachoie123/radar.git
+cd radar
+chmod +x instalar.command Radar.command
+./instalar.command      # macOS: sets up the nightly agents and opens the app
+
+# Linux / Windows
+python3 ingesta.py      # fills the catalogue (~5 min the first time)
+python3 app.py          # serves http://localhost:8000</pre>
+  </div>
+
+  <footer>Built by <a href="https://www.linkedin.com/in/nacho-san-benito/">Ignacio San Benito</a> · <a href="https://github.com/nachoie123/radar">GitHub</a></footer>
+</main>
+</body>
+</html>
