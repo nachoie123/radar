@@ -84,10 +84,53 @@
   .grid.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
   .stats4{grid-template-columns:repeat(4,1fr)}
   @media (max-width:640px){.stats4{grid-template-columns:repeat(2,1fr)}}
+
+  /* install on your Mac: same block on every landing that ships a .dmg */
+  .install{--ia:var(--accent);--ib:var(--border);--is:var(--surface);--it:var(--text);--im:var(--muted);--io:var(--on-accent);--mac:#0a84ff}
+  .install .isub{color:var(--im);margin:-8px 0 20px;max-width:62ch}
+  .isteps{list-style:none;padding:0;margin:0;display:grid;gap:14px;counter-reset:is}
+  .isteps>li{counter-increment:is;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start;background:var(--is);border:1px solid var(--ib);border-radius:18px;padding:20px 20px 20px 66px;position:relative}
+  .isteps>li::before{content:counter(is);position:absolute;left:20px;top:20px;width:30px;height:30px;border-radius:50%;background:var(--ia);color:var(--io);font-weight:700;font-size:15px;display:grid;place-items:center}
+  .isteps b.t{display:block;font-size:17px;margin-bottom:6px;color:var(--it)}
+  .isteps p{margin:0;color:var(--im);font-size:15px}
+  .isteps p b{color:var(--it)}
+  .isteps>li.noart{grid-template-columns:1fr}
+  @media (max-width:720px){.isteps>li{grid-template-columns:1fr;padding:18px 18px 18px 60px}.isteps>li::before{left:16px;top:18px}.iart{margin-left:-42px}}
+  /* the drawings: plain HTML, look like macOS, no screenshots */
+  .iart{font:12px/1.35 -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:var(--it);display:flex;justify-content:center}
+  .iwin{width:100%;max-width:300px;background:color-mix(in srgb,var(--is) 88%,var(--it) 6%);border:1px solid var(--ib);border-radius:14px;box-shadow:0 1px 2px rgb(0 0 0/.06),0 12px 30px -12px rgb(0 0 0/.25);padding:16px}
+  .iicon{width:44px;height:44px;border-radius:11px;background:var(--ia);color:#fff;font:700 20px -apple-system,sans-serif;display:grid;place-items:center;flex:none;object-fit:cover}
+  .idrag{display:flex;align-items:center;justify-content:space-around;gap:10px;padding:22px 16px}
+  .idrag span{display:block;text-align:center;font-size:11px;color:var(--im);margin-top:6px}
+  .idrag .arr{flex:1;height:2px;background:var(--ia);position:relative;max-width:90px}
+  .idrag .arr::after{content:"";position:absolute;right:-2px;top:-5px;border:6px solid transparent;border-left:9px solid var(--ia);border-right:0}
+  .ifold{width:52px;height:40px;border-radius:5px 5px 7px 7px;background:linear-gradient(#62b5f7,#3a95e6);position:relative;margin:4px auto 0}
+  .ifold::before{content:"";position:absolute;left:0;top:-6px;width:22px;height:8px;border-radius:4px 4px 0 0;background:#62b5f7}
+  .ifold::after{content:"A";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font:700 15px -apple-system,sans-serif;opacity:.85}
+  .idlg{text-align:center}
+  .idlg .iicon{margin:2px auto 10px;width:40px;height:40px}
+  .idlg h4{margin:0 0 4px;font-size:13px}
+  .idlg p{margin:0 0 12px;font-size:11px;color:var(--im)}
+  .ibtn{display:block;border-radius:7px;padding:5px;font-size:12px;margin-top:6px;background:color-mix(in srgb,var(--it) 10%,transparent)}
+  .ibtn.on{background:var(--mac);color:#fff;outline:3px solid color-mix(in srgb,var(--ia) 55%,transparent);outline-offset:2px}
+  .iset .ihead{font-weight:600;font-size:13px;margin-bottom:10px}
+  .iset .ilbl{font-size:11px;color:var(--im);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}
+  .iset .irow{display:flex;align-items:center;gap:10px;justify-content:space-between;background:color-mix(in srgb,var(--it) 5%,transparent);border-radius:9px;padding:10px}
+  .iset .irow span{font-size:11px}
+  .iset .ibtn{margin:0;padding:5px 10px;white-space:nowrap;flex:none}
+  .iwhy{margin-top:14px;background:var(--is);border:1px solid var(--ib);border-radius:18px;padding:20px}
+  .iwhy p{margin:0 0 10px;color:var(--im);font-size:15px}
+  .iwhy p b{color:var(--it)}
+  .iwhy pre{margin:8px 0;padding:12px 14px;border-radius:10px;background:color-mix(in srgb,var(--it) 6%,transparent);overflow-x:auto;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--it)}
+  .iwhy code{font:12.5px ui-monospace,Menlo,monospace;word-break:break-all;color:var(--it)}
+  .iwhy details{margin-top:6px}
+  .iwhy summary{cursor:pointer;color:var(--it);font-weight:600;font-size:15px;min-height:32px}
+  .iwhy summary:focus-visible{outline:2px solid var(--ia);outline-offset:3px;border-radius:6px}
+  .small a{color:inherit}
 </style>
 </head>
 <body>
-<header class="top"><a href="https://nachosanbenito.com/#work"><span aria-hidden="true">←</span> nachosanbenito.com</a><a class="btn main" href="https://github.com/nachoie123/radar">GitHub</a></header>
+<header class="top"><a href="https://nachosanbenito.com/#work"><span aria-hidden="true">←</span> nachosanbenito.com</a><a class="btn main" href="#get">Download</a></header>
 <main class="wrap">
   <div class="radar" aria-hidden="true"></div>
   <div class="video"><video src="radar-promo.mp4" poster="poster.jpg" controls playsinline preload="metadata"></video></div>
@@ -96,11 +139,10 @@
     <div class="brand">Radar</div>
     <h1>One list for every internship <span>opening.</span></h1>
     <p class="lead">Radar reads the job boards companies already publish, keeps everything in a SQLite file on your disk, and ranks it against your CV. No account, no cloud, no API key.</p>
-    <div class="cta">
-      <a class="btn main" href="https://github.com/nachoie123/radar">View on GitHub</a>
-      <a class="btn ghost" href="#run">Run it yourself</a>
+    <div class="cta" id="get">
+      <a class="btn main" href="https://github.com/nachoie123/radar/releases/latest/download/Radar.dmg">⬇ Download for Mac</a>
     </div>
-    <p class="small">Free &amp; open source (MIT) · runs on your own computer · interface in Spanish</p>
+    <p class="small">Free &amp; open source · Apple Silicon and Intel · 20 MB · macOS 11+ · runs on your own computer · interface in Spanish · <a href="https://github.com/nachoie123/radar">Source on GitHub</a> · <a href="#install">How to install</a></p>
   </section>
 
   <h2>Why it exists</h2>
@@ -110,7 +152,7 @@
 
   <h2>What it does</h2>
   <div class="grid">
-    <div class="card"><b>Fills itself</b><p>Walks 89 company boards on public ATS APIs (Greenhouse, Lever, Ashby, Workday, SmartRecruiters and more) plus community GitHub boards. A first run takes about five minutes; after that, a nightly pass.</p></div>
+    <div class="card"><b>Fills itself</b><p>Walks 89 company boards on public ATS APIs (Greenhouse, Lever, Ashby, Workday, SmartRecruiters and more) plus community GitHub boards. A first run takes about five minutes; after that it refreshes itself when you open it (or nightly, if you run it from source).</p></div>
     <div class="card"><b>Ranks against your CV</b><p>SQLite FTS5 and <code>bm25()</code>. No model, no tokens, no network. Paste your CV once and the <i>Para ti</i> ("For you") tab is ordered by match, showing the terms that hit.</p></div>
     <div class="card"><b>Reads the posting for you</b><p><code>descr.py</code> fetches the actual job description so you can judge a role without leaving the app. Postings that can't be read say why.</p></div>
     <div class="card"><b>Europe first, by your rules</b><p>Filters by graduation year, summer-only, degree level and region (<code>es</code>, <code>uk</code>, <code>de</code>, <code>benelux</code>, <code>us</code>…), all set in one config file.</p></div>
@@ -140,7 +182,32 @@
     <li class="card"><b>app.py + index.html</b>: a Python <code>ThreadingHTTPServer</code> on <code>127.0.0.1</code> and one HTML file. Nothing is ever exposed to your network.</li>
   </ol>
 
-  <h2 id="run">Run it yourself</h2>
+  <section class="install" id="install">
+  <h2>Install on your Mac</h2>
+  <p class="isub">About a minute. Step 3 happens only the first time.</p>
+  <ol class="isteps">
+    <li>
+      <div><b class="t">Drag it into Applications</b><p>Open <b>Radar.dmg</b> and drag <b>Radar</b> onto the <b>Applications</b> folder.</p></div>
+      <div class="iart" aria-hidden="true"><div class="iwin idrag"><div><img class="iicon" src="icon.png" alt=""><span>Radar</span></div><div class="arr"></div><div><div class="ifold"></div><span>Applications</span></div></div></div>
+    </li>
+    <li>
+      <div><b class="t">Open it. macOS stops it. Click Done.</b><p>macOS says Apple could not verify “Radar” is free of malware. It says that about every app that isn't notarized by Apple. Click <b>Done</b>, not Move to Trash.</p></div>
+      <div class="iart" aria-hidden="true"><div class="iwin idlg"><img class="iicon" src="icon.png" alt=""><h4>“Radar” Not Opened</h4><p>Apple could not verify “Radar” is free of malware that may harm your Mac or compromise your privacy.</p><span class="ibtn on">Done</span><span class="ibtn">Move to Trash</span></div></div>
+    </li>
+    <li>
+      <div><b class="t">Open Anyway, once</b><p>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to <b>Security</b> and click <b>Open Anyway</b> next to “Radar” was blocked. Confirm with your password or Touch ID. From then on it opens with a double-click.</p></div>
+      <div class="iart" aria-hidden="true"><div class="iwin iset"><div class="ihead">Privacy &amp; Security</div><div class="ilbl">Security</div><div class="irow"><span>“Radar” was blocked to protect your Mac.</span><span class="ibtn on">Open Anyway</span></div></div></div>
+    </li>
+  <li class="noart"><div><b class="t">Then: let it fill, paste your CV</b><p>The first time it reads every board (about 5 minutes, with a progress bar). Then paste your CV in <b>Mi CV</b> and open <b>Para ti</b>. It refreshes by itself when you open it.</p></div></li>
+  </ol>
+  <div class="iwhy">
+    <p><b>Why the warning?</b> Notarizing an app needs a paid Apple developer account ($99 a year). This is a free side project, so it isn't notarized. The full source code is on GitHub, and you can check that your download is exactly the file I built. In Terminal:</p>
+    <pre>shasum -a 256 ~/Downloads/Radar.dmg</pre><p>should print <code>8a5e582dc6603458bd5d41c67ef7482c263bc6d74919ddb61fc8bd928e158dfb</code></p>
+    <details><summary>Prefer the Terminal for step 3?</summary><pre>xattr -dr com.apple.quarantine "/Applications/Radar.app"</pre></details>
+  </div>
+  </section>
+
+  <h2 id="run">Or run it from source</h2>
   <div class="card note">
     <p style="margin:0"><b>There is no hosted demo, on purpose.</b> Radar holds your CV and your applications, so it runs on your machine at <code>http://localhost:8000</code> instead of on somebody's server. You need Python 3.9+ with SQLite FTS5, nothing else.</p>
     <pre>git clone https://github.com/nachoie123/radar.git
