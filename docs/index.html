@@ -4,213 +4,460 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Radar</title>
-<meta name="description" content="A local internship board that fills itself every night from public job APIs, ranks openings against your CV with SQLite FTS5, and never asks for an API key.">
-<meta property="og:title" content="Radar — one list for every internship opening">
+<meta name="description" content="A local internship board that fills itself from public job APIs, ranks openings against your CV with SQLite FTS5, and never asks for an API key.">
+<meta property="og:title" content="Radar: one list for every internship opening">
 <meta property="og:description" content="1,017 openings from 111 companies, ranked against your CV. Runs on your own machine: no account, no cloud, no API key.">
 <meta property="og:image" content="https://nachosanbenito.com/radar/poster.jpg">
 <meta property="og:type" content="website">
-<meta name="theme-color" content="#f0f9ff">
+<meta name="theme-color" content="#08090a">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap" rel="stylesheet">
+<script>document.documentElement.classList.add('js')</script>
 <style>
-  :root{--bg:#f0f9ff;--surface:#fff;--text:#0c4a6e;--muted:#47657a;--border:#bae6fd;--accent:#0369a1;--on-accent:#fff;--ok:#15803d;--code:#e7eff5}
-  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1620;--surface:#10202c;--text:#e6f1f8;--muted:#93aec2;--border:#1e3648;--accent:#38bdf8;--on-accent:#04121b;--ok:#4ade80;--code:#162937}}
-  :root[data-theme="dark"]{--bg:#0b1620;--surface:#10202c;--text:#e6f1f8;--muted:#93aec2;--border:#1e3648;--accent:#38bdf8;--on-accent:#04121b;--ok:#4ade80;--code:#162937}
+  /* Design DNA: linear.app (docs/landings-rediseno/radar/adn.json in nachosanbenito-web).
+     Near-black, Inter at 510, two-tone headings, the product's own rows as the illustration.
+     One accent, the sky blue Radar already uses in its dark theme. */
+  :root{
+    --bg:#08090a;--surface:#0f1011;--raise:#151617;--line:rgb(255 255 255/.08);--line2:rgb(255 255 255/.13);
+    --ink:#f7f8f8;--dim:#8a8f98;--faint:#80868f;--acc:#38bdf8;--acc-soft:rgb(56 189 248/.14);
+    --r:12px;--rs:6px;--ease:cubic-bezier(.22,.8,.24,1);
+    --w:1200px;--pad:24px;
+    color-scheme:dark;
+  }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:17px/1.55 "Source Sans 3",-apple-system,sans-serif;overflow-x:hidden}
-  h1,h2,h3,.brand,.stat b{font-family:Lexend,-apple-system,sans-serif}
-  .wrap{max-width:1040px;margin:0 auto;padding:40px 16px 72px;position:relative}
-  html,.wrap{overflow-x:clip}
-  /* the sweeping radar: one idea, pure CSS */
-  .radar{position:absolute;left:50%;top:-120px;width:1100px;height:1100px;margin-left:-550px;border-radius:50%;pointer-events:none;z-index:0;
-    background:repeating-radial-gradient(circle,transparent 0 109px,var(--border) 109px 111px);opacity:.7;
-    -webkit-mask-image:linear-gradient(#000 35%,transparent 70%);mask-image:linear-gradient(#000 35%,transparent 70%)}
-  .radar::after{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 300deg,color-mix(in srgb,var(--accent) 35%,transparent) 360deg);animation:sweep 6s linear infinite}
-  @keyframes sweep{to{transform:rotate(360deg)}}
-  @media (prefers-reduced-motion:reduce){.radar::after{animation:none}}
-  main>*{position:relative;z-index:1}
-  .video video{width:100%;display:block;border-radius:20px;background:#0b1620;box-shadow:0 30px 80px rgb(3 105 161 / .28);aspect-ratio:16/9}
-  .intro{max-width:700px;margin:56px auto 0;text-align:center}
-  .brand{font-weight:700;font-size:20px;color:var(--accent);letter-spacing:-.01em}
-  h1{font-size:clamp(36px,6vw,60px);line-height:1.05;letter-spacing:-.03em;margin:14px 0 16px;font-weight:700}
-  h1 span{color:var(--accent)}
-  .lead{color:var(--muted);font-size:20px;margin:0 auto}
-  .cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:28px 0 10px}
-  .btn{display:inline-flex;align-items:center;gap:8px;padding:14px 24px;border-radius:12px;font:600 17px Lexend,sans-serif;text-decoration:none}
-  .btn.main{background:var(--accent);color:var(--on-accent)}
-  .btn.ghost{border:2px solid var(--border);color:var(--text);background:var(--surface)}
-  .small{color:var(--muted);font-size:15px;margin:10px 0 0}
-  h2{font-size:28px;letter-spacing:-.02em;margin:72px 0 20px;font-weight:600}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
-  .grid b{display:block;margin-bottom:6px;font-family:Lexend,sans-serif;font-weight:600}
-  .grid p{margin:0;color:var(--muted);font-size:16px}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
-  .stat{text-align:center}
-  .stat b{display:block;font-size:44px;line-height:1.1;color:var(--accent);letter-spacing:-.03em}
-  .stat span{color:var(--muted);font-size:15px}
-  ol.steps{list-style:none;padding:0;margin:0;display:grid;gap:12px;counter-reset:s}
-  ol.steps li{counter-increment:s;position:relative;padding:18px 20px 18px 64px}
-  ol.steps li::before{content:counter(s);position:absolute;left:20px;top:16px;width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--on-accent);font:700 16px Lexend,sans-serif;display:grid;place-items:center}
-  code,pre{font-family:ui-monospace,Menlo,monospace;font-size:14.5px}
-  pre{background:var(--code);border-radius:12px;padding:16px;overflow-x:auto;margin:14px 0 0}
-  :not(pre)>code{background:var(--code);padding:2px 6px;border-radius:6px}
-  .shots{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  .shots img{width:100%;display:block;border-radius:12px;border:1px solid var(--border)}
-  .shots figcaption{color:var(--muted);font-size:14px;margin-top:8px}
-  .shots figure{margin:0}
-  @media (max-width:640px){.shots{grid-template-columns:1fr}}
-  .note{border-left:4px solid var(--accent)}
-  footer{margin-top:64px;color:var(--muted);font-size:14px;text-align:center}
-  footer a{color:inherit}
+  html{-webkit-text-size-adjust:100%;scroll-padding-top:80px}
+  body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.6 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-optical-sizing:auto;letter-spacing:-.011em;overflow-x:clip;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  img,video{max-width:100%}
+  h1,h2,h3{font-weight:510;margin:0;text-wrap:balance}
+  p{margin:0;text-wrap:pretty}
+  code,pre{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+  .wrap{max-width:var(--w);margin:0 auto;padding:0 var(--pad)}
+  :focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:4px}
 
-  /* design pass (ui-ux-pro-max + apple-design): wayfinding bar, press feedback, wrapping */
-  html{scroll-padding-top:84px}
-  @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
-  .top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px max(16px,calc((100% - 1008px)/2));background:color-mix(in srgb,var(--bg) 74%,transparent);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);border-bottom:1px solid var(--border)}
-  @supports (animation-timeline:scroll()){.top{border-bottom-color:transparent;animation:edge linear both;animation-timeline:scroll();animation-range:0 48px}}
-  @keyframes edge{to{border-bottom-color:var(--border)}}
-  @media (prefers-reduced-transparency:reduce){.top{background:var(--bg);-webkit-backdrop-filter:none;backdrop-filter:none}}
-  .top a{min-height:44px;display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:15px;font-weight:500;text-decoration:none;transition:color .2s}
-  .top a:hover{color:var(--text)}
-  .top .btn{padding:0 18px;font-size:15px}
-  .btn{transition:transform .12s ease-out,filter .2s,border-color .2s;-webkit-tap-highlight-color:transparent}
-  .btn:hover{filter:brightness(1.07)}
-  .btn:not(.main):hover{border-color:var(--accent)}
-  .btn:active{transform:scale(.97);transition-duration:.06s}
-  a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
-  h1,h2{text-wrap:balance}
-  p,li,figcaption{text-wrap:pretty}
-  .grid.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
-  .stats4{grid-template-columns:repeat(4,1fr)}
-  @media (max-width:640px){.stats4{grid-template-columns:repeat(2,1fr)}}
+  /* top bar */
+  .top{position:sticky;top:0;z-index:30;height:64px;border-bottom:1px solid transparent;background:rgb(8 9 10/.72);-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);transition:border-color .3s}
+  .top.edge{border-bottom-color:var(--line)}
+  .top .wrap{height:100%;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .top a{text-decoration:none;font-size:14px;color:var(--dim);min-height:44px;display:inline-flex;align-items:center;gap:8px;transition:color .2s}
+  .top a:hover{color:var(--ink)}
+  .top .brand{color:var(--ink);font-weight:510;font-size:15px}
+  .top .brand img{width:22px;height:22px;border-radius:6px}
+  .top nav{display:flex;align-items:center;gap:20px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:8px;background:var(--ink);color:var(--bg)!important;font-weight:510;font-size:15px;text-decoration:none;white-space:nowrap;transition:background .2s,transform .12s var(--ease)}
+  .btn:hover{background:#fff}
+  .btn:active{transform:scale(.97)}
+  .top .btn{min-height:40px;padding:0 14px;font-size:13.5px}
+  .link{text-decoration:none;color:var(--ink);font-weight:510;display:inline-flex;align-items:center;gap:6px;min-height:44px;transition:color .2s}
+  .link:hover{color:var(--acc)}
+  .link span{transition:transform .2s var(--ease)}
+  .link:hover span{transform:translateX(3px)}
 
-  /* install on your Mac: same block on every landing that ships a .dmg */
-  .install{--ia:var(--accent);--ib:var(--border);--is:var(--surface);--it:var(--text);--im:var(--muted);--io:var(--on-accent);--mac:#0a84ff}
-  .install .isub{color:var(--im);margin:-8px 0 20px;max-width:62ch}
-  .isteps{list-style:none;padding:0;margin:0;display:grid;gap:14px;counter-reset:is}
-  .isteps>li{counter-increment:is;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start;background:var(--is);border:1px solid var(--ib);border-radius:18px;padding:20px 20px 20px 66px;position:relative}
-  .isteps>li::before{content:counter(is);position:absolute;left:20px;top:20px;width:30px;height:30px;border-radius:50%;background:var(--ia);color:var(--io);font-weight:700;font-size:15px;display:grid;place-items:center}
-  .isteps b.t{display:block;font-size:17px;margin-bottom:6px;color:var(--it)}
-  .isteps p{margin:0;color:var(--im);font-size:15px}
-  .isteps p b{color:var(--it)}
+  /* hero */
+  .hero{padding-top:96px}
+  .hero h1{font-size:clamp(40px,6.2vw,64px);line-height:1.02;letter-spacing:-.024em;max-width:14ch}
+  .hero .row{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;margin-top:28px}
+  .hero .lead{color:var(--dim);font-size:17px;line-height:1.55;max-width:44ch}
+  .hero .lead b{color:var(--ink);font-weight:510}
+  .hero .ctas{display:flex;align-items:center;gap:24px;flex:none}
+
+  /* the object: Radar's own list, swept */
+  .stage{position:relative;margin:64px 0 0}
+  .stage::before{content:"";position:absolute;left:50%;top:-80px;width:min(1100px,100%);height:420px;transform:translateX(-50%);background:radial-gradient(closest-side,rgb(56 189 248/.10),transparent);pointer-events:none}
+  .app{position:relative;max-height:600px;background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);overflow:hidden;box-shadow:0 40px 120px -40px rgb(0 0 0/.8);
+       -webkit-mask-image:linear-gradient(#000 62%,transparent 98%);mask-image:linear-gradient(#000 62%,transparent 98%)}
+  .app-bar{display:flex;align-items:center;justify-content:center;gap:16px;padding:11px 20px;border-bottom:1px solid var(--line);background:rgb(255 255 255/.015)}
+  .app-bar .url{font-size:12.5px;color:var(--faint)}
+  .app-head{display:flex;align-items:center;gap:14px;padding:18px 28px 0}
+  .wm{font-weight:600;font-size:22px;letter-spacing:-.04em}
+  .scope{width:26px;height:26px;border-radius:50%;border:1px solid var(--line2);position:relative;overflow:hidden;flex:none;
+         background:repeating-radial-gradient(circle,transparent 0 5px,rgb(255 255 255/.07) 5px 6px)}
+  .scope::after{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 270deg,rgb(56 189 248/.55) 360deg)}
+  .app.sweeping .scope::after{animation:spin 1.3s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .count{font-size:13px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .tabs{display:flex;gap:4px;padding:14px 22px 14px;overflow:hidden}
+  .tabs span,.tabs button{font:510 13.5px/1 Inter,sans-serif;letter-spacing:-.01em;color:var(--faint);padding:9px 12px;border-radius:7px;border:0;background:none;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
+  .tabs button{color:var(--dim);cursor:pointer;min-height:34px;transition:background .2s,color .2s}
+  .tabs button:hover{color:var(--ink)}
+  .tabs button[aria-pressed="true"]{background:var(--acc);color:#04121b}
+  .tabs .n{font-variant-numeric:tabular-nums;font-size:12px;min-width:2ch;padding:2px 6px;border-radius:5px;background:rgb(255 255 255/.08)}
+  .tabs button[aria-pressed="true"] .n{background:rgb(255 255 255/.4);color:#04121b}
+  .search{margin:0 28px 6px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;color:var(--faint);background:rgb(255 255 255/.02)}
+  .list{position:relative;padding:4px 28px 120px}
+  .job{position:relative;display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:20px;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--line);color:var(--faint);transition:color .45s,opacity .5s}
+  .job b{font-weight:560;font-size:14px;color:var(--dim);transition:color .45s}
+  .job .role{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .45s}
+  .job .loc{font-size:12.5px;color:var(--faint);margin-left:8px}
+  .job .hit{display:flex;gap:5px;justify-content:flex-end;opacity:0;transform:translateX(6px);transition:opacity .4s,transform .5s var(--ease)}
+  .job .hit i{font-style:normal;font-size:12px;font-weight:510;padding:2px 7px;border-radius:5px;background:var(--acc-soft);color:var(--acc)}
+  .job::before{content:"";position:absolute;left:-28px;top:0;bottom:0;width:2px;background:var(--acc);transform:scaleY(0);transition:transform .45s var(--ease)}
+  .job.lit b{color:var(--ink)}.job.lit .role{color:var(--ink)}
+  .job.lit .hit{opacity:1;transform:none}
+  .job.lit::before{transform:scaleY(1)}
+  .job.ping{animation:ping .9s var(--ease)}
+  @keyframes ping{0%{background:rgb(56 189 248/.16)}100%{background:transparent}}
+  .app.mine .job:not(.lit){opacity:.28}
+  .beam{position:absolute;left:0;right:0;top:0;height:120px;pointer-events:none;opacity:0;
+        background:linear-gradient(to bottom,rgb(125 211 252/.95) 0 1.5px,rgb(56 189 248/.18) 1.5px,transparent 100%);will-change:transform}
+  section.wrap#film{padding-top:112px}
+  .filmgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.1fr);gap:24px 48px;align-items:start}
+  .filmgrid .promo{margin:0}
+  .stage figcaption{margin-top:12px;position:relative;font-size:13px;color:var(--faint);max-width:60ch}
+
+  /* sections */
+  section.wrap{padding-top:168px}
+  .h2{font-size:clamp(30px,4vw,44px);line-height:1.08;letter-spacing:-.022em}
+  .h2 .g,.state .g{color:var(--dim)}
+  .sub{color:var(--dim);font-size:17px;max-width:52ch;margin-top:16px}
+  .head2{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}
+  .head2 p{color:#d0d6e0;font-size:clamp(18px,1.9vw,24px);line-height:1.33;letter-spacing:-.012em;max-width:566px;padding-top:4px}
+  .head2 p b{color:var(--ink);font-weight:510}
+  .head2 code,.cell code{font-size:.9em;color:var(--ink)}
+
+  /* film */
+  .promo{position:relative;margin:40px 0 0}
+  .promo video{display:block;width:100%;height:auto;aspect-ratio:16/9;border-radius:var(--r);border:1px solid var(--line2);background:#0f1011}
+  .play{position:absolute;left:0;top:0;width:100%;aspect-ratio:16/9;display:grid;place-items:center;padding:0;border:0;border-radius:var(--r);background:linear-gradient(rgb(8 9 10/0) 60%,rgb(8 9 10/.5));color:#fff;font-family:inherit;cursor:pointer}
+  .play i{display:grid;place-items:center;width:84px;height:58px;border-radius:16px;background:rgb(23 23 23/.82);box-shadow:0 6px 24px rgb(0 0 0/.45)}
+  .play i svg{width:26px;height:26px;margin-left:2px}
+  .play span{position:absolute;left:20px;bottom:18px;font-size:15px;font-weight:510;text-shadow:0 1px 8px rgb(0 0 0/.6)}
+  .play small{position:absolute;right:16px;bottom:16px;padding:3px 7px;border-radius:6px;background:rgb(0 0 0/.78);color:#fff;font-size:13px;font-weight:510;font-variant-numeric:tabular-nums}
+  .play:hover i,.play:focus-visible i{background:#ff0033}
+  .play:focus-visible{outline:2px solid var(--acc);outline-offset:4px}
+  html:not(.js) .play{display:none}
+  @media (prefers-reduced-motion:no-preference){.play i{transition:transform .3s var(--ease),background-color .15s}.play:hover i{transform:scale(1.06)}}
+  .cap{margin-top:14px;font-size:13.5px;color:var(--faint)}
+
+  /* why */
+  .state{font-size:clamp(24px,2.9vw,36px);line-height:1.28;letter-spacing:-.02em;font-weight:510;max-width:36ch}
+
+  /* para ti */
+  .rank{display:grid;grid-template-columns:1fr;gap:24px;margin-top:56px;align-items:start}
+  .shot{position:relative;margin:0}
+  .shot video{display:block;width:100%;height:auto;aspect-ratio:16/10;border-radius:var(--r);border:1px solid var(--line2);background:#0b1620}
+  .side{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .panel .ph{display:flex;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--faint)}
+  .panel .ph b{font-weight:510;color:var(--dim)}
+  pre.sql{margin:0;padding:16px;font-size:12.5px;line-height:1.7;color:#c9ccd1;overflow-x:auto;white-space:pre}
+  .sql .k{color:var(--acc)}.sql .c{color:var(--faint)}
+  .match{padding:16px;display:grid;gap:14px}
+  .match h3{font-size:16px;letter-spacing:-.012em}
+  .match .who{font-size:13px;color:var(--dim);margin-top:2px}
+  .match dl{margin:0;display:grid;gap:10px}
+  .match dt{font-size:12.5px;color:var(--faint);margin-bottom:6px}
+  .match dd{margin:0;display:flex;flex-wrap:wrap;gap:6px}
+  .match dd i{font-style:normal;font-size:12.5px;font-weight:510;padding:3px 8px;border-radius:5px;background:rgb(255 255 255/.06);color:var(--ink)}
+  .match dd.t i{background:var(--acc-soft);color:var(--acc)}
+
+  /* the rest: 3 + 2 cells, hairlines, no cards */
+  .cells{display:grid;grid-template-columns:repeat(6,1fr);margin-top:56px;border-top:1px solid var(--line)}
+  .cell{grid-column:span 2;padding:32px 32px 36px 0;border-bottom:1px solid var(--line)}
+  .cell+.cell{padding-left:32px;border-left:1px solid var(--line)}
+  .cell:nth-child(4){grid-column:span 3;padding-left:0;border-left:0}
+  .cell:nth-child(5){grid-column:span 3}
+  .cell h3{font-size:17px;letter-spacing:-.012em}
+  .cell p{color:var(--dim);font-size:15px;margin-top:8px;max-width:46ch}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:20px}
+  .tags i{font-style:normal;font-size:12.5px;font-weight:510;padding:4px 9px;border-radius:5px;border:1px solid var(--line2);color:var(--ink)}
+  .tags i.w{border-color:rgb(248 113 113/.35);color:#fca5a5}
+  .tags i.a{border-color:rgb(56 189 248/.35);color:var(--acc)}
+
+  /* numbers */
+  .nums{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:24px;margin-top:48px;align-items:end}
+  .nums div:first-child b{font-size:clamp(64px,9vw,120px);color:var(--acc)}
+  .nums b{display:block;font-size:clamp(40px,5vw,60px);font-weight:510;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+  .nums span{display:block;color:var(--dim);font-size:14.5px;margin-top:10px;max-width:22ch}
+
+  /* how it's built */
+  .files{margin:48px 0 0;padding:0;list-style:none;position:relative}
+  .files li{display:grid;grid-template-columns:260px 1fr;gap:32px;padding:22px 0;border-top:1px solid var(--line);align-items:baseline}
+  .files li:last-child{border-bottom:1px solid var(--line)}
+  .files code{font-size:15px;color:var(--ink)}
+  .files code em{font-style:normal;color:var(--dim)}
+  .files p{color:var(--dim);font-size:15.5px;max-width:60ch}
+  .files p code{font-size:.92em}
+
+  /* install (same steps as the other Mac landings) */
+  .ctas2{display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin-top:28px}
+  .meta{color:var(--faint);font-size:14px;margin-top:14px}
+  .meta a{color:var(--dim)}
+  .isteps{list-style:none;padding:0;margin:48px 0 0;display:grid;gap:12px}
+  .isteps>li{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:24px 28px}
   .isteps>li.noart{grid-template-columns:1fr}
-  @media (max-width:720px){.isteps>li{grid-template-columns:1fr;padding:18px 18px 18px 60px}.isteps>li::before{left:16px;top:18px}.iart{margin-left:-42px}}
-  /* the drawings: plain HTML, look like macOS, no screenshots */
-  .iart{font:12px/1.35 -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:var(--it);display:flex;justify-content:center}
-  .iwin{width:100%;max-width:300px;background:color-mix(in srgb,var(--is) 88%,var(--it) 6%);border:1px solid var(--ib);border-radius:14px;box-shadow:0 1px 2px rgb(0 0 0/.06),0 12px 30px -12px rgb(0 0 0/.25);padding:16px}
-  .iicon{width:44px;height:44px;border-radius:11px;background:var(--ia);color:#fff;font:700 20px -apple-system,sans-serif;display:grid;place-items:center;flex:none;object-fit:cover}
+  .isteps b.t{display:block;font-weight:510;font-size:17px;letter-spacing:-.012em;margin-bottom:6px}
+  .isteps p{color:var(--dim);font-size:15px}
+  .isteps p b{color:var(--ink);font-weight:510}
+  .iart{font:12px/1.35 -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:var(--ink);display:flex;justify-content:center;letter-spacing:0}
+  .iwin{width:100%;max-width:300px;background:#1c1d1f;border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 30px -12px rgb(0 0 0/.6);padding:16px}
+  .iicon{width:44px;height:44px;border-radius:11px;display:block;flex:none;object-fit:cover}
   .idrag{display:flex;align-items:center;justify-content:space-around;gap:10px;padding:22px 16px}
-  .idrag span{display:block;text-align:center;font-size:11px;color:var(--im);margin-top:6px}
-  .idrag .arr{flex:1;height:2px;background:var(--ia);position:relative;max-width:90px}
-  .idrag .arr::after{content:"";position:absolute;right:-2px;top:-5px;border:6px solid transparent;border-left:9px solid var(--ia);border-right:0}
+  .idrag span{display:block;text-align:center;font-size:11px;color:var(--dim);margin-top:6px}
+  .idrag .arr{flex:1;height:2px;background:var(--acc);position:relative;max-width:90px}
+  .idrag .arr::after{content:"";position:absolute;right:-2px;top:-5px;border:6px solid transparent;border-left:9px solid var(--acc);border-right:0}
   .ifold{width:52px;height:40px;border-radius:5px 5px 7px 7px;background:linear-gradient(#62b5f7,#3a95e6);position:relative;margin:4px auto 0}
   .ifold::before{content:"";position:absolute;left:0;top:-6px;width:22px;height:8px;border-radius:4px 4px 0 0;background:#62b5f7}
   .ifold::after{content:"A";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font:700 15px -apple-system,sans-serif;opacity:.85}
   .idlg{text-align:center}
   .idlg .iicon{margin:2px auto 10px;width:40px;height:40px}
   .idlg h4{margin:0 0 4px;font-size:13px}
-  .idlg p{margin:0 0 12px;font-size:11px;color:var(--im)}
-  .ibtn{display:block;border-radius:7px;padding:5px;font-size:12px;margin-top:6px;background:color-mix(in srgb,var(--it) 10%,transparent)}
-  .ibtn.on{background:var(--mac);color:#fff;outline:3px solid color-mix(in srgb,var(--ia) 55%,transparent);outline-offset:2px}
+  .idlg p{margin:0 0 12px;font-size:11px;color:var(--dim)}
+  .ibtn{display:block;border-radius:7px;padding:5px;font-size:12px;margin-top:6px;background:rgb(255 255 255/.1)}
+  .ibtn.on{background:#0a84ff;color:#fff;outline:3px solid rgb(56 189 248/.45);outline-offset:2px}
   .iset .ihead{font-weight:600;font-size:13px;margin-bottom:10px}
-  .iset .ilbl{font-size:11px;color:var(--im);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}
-  .iset .irow{display:flex;align-items:center;gap:10px;justify-content:space-between;background:color-mix(in srgb,var(--it) 5%,transparent);border-radius:9px;padding:10px}
+  .iset .ilbl{font-size:11px;color:var(--dim);margin:0 0 6px}
+  .iset .irow{display:flex;align-items:center;gap:10px;justify-content:space-between;background:rgb(255 255 255/.05);border-radius:9px;padding:10px}
   .iset .irow span{font-size:11px}
   .iset .ibtn{margin:0;padding:5px 10px;white-space:nowrap;flex:none}
-  .iwhy{margin-top:14px;background:var(--is);border:1px solid var(--ib);border-radius:18px;padding:20px}
-  .iwhy p{margin:0 0 10px;color:var(--im);font-size:15px}
-  .iwhy p b{color:var(--it)}
-  .iwhy pre{margin:8px 0;padding:12px 14px;border-radius:10px;background:color-mix(in srgb,var(--it) 6%,transparent);overflow-x:auto;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--it)}
-  .iwhy code{font:12.5px ui-monospace,Menlo,monospace;word-break:break-all;color:var(--it)}
-  .iwhy details{margin-top:6px}
-  .iwhy summary{cursor:pointer;color:var(--it);font-weight:600;font-size:15px;min-height:32px}
-  .iwhy summary:focus-visible{outline:2px solid var(--ia);outline-offset:3px;border-radius:6px}
-  .small a{color:inherit}
+  .iwhy{margin-top:12px;border:1px solid var(--line);border-radius:var(--r);padding:24px 28px}
+  .iwhy p{color:var(--dim);font-size:15px;margin-bottom:10px}
+  .iwhy p b{color:var(--ink);font-weight:510}
+  .iwhy pre,.src pre{margin:8px 0 12px;padding:14px 16px;border-radius:8px;background:var(--surface);border:1px solid var(--line);overflow-x:auto;font-size:13px;line-height:1.6;color:#d6d8dc}
+  .iwhy code{font-size:12.5px;word-break:break-all;color:var(--ink)}
+  .iwhy summary{cursor:pointer;color:var(--ink);font-weight:510;font-size:15px;min-height:32px}
+
+  .src{margin-top:40px;max-width:780px}
+  .src p{color:var(--dim);font-size:16px}
+  .src p b{color:var(--ink);font-weight:510}
+  .src p code{font-size:.9em;color:var(--ink)}
+
+  footer{margin:140px 0 0;padding:28px 0 40px;border-top:1px solid var(--line)}
+  footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:14px;color:var(--dim)}
+  footer a{color:var(--ink);text-decoration:none}
+  footer a:hover{text-decoration:underline;text-underline-offset:3px}
+
+  /* reveal on scroll */
+  .js .rv{opacity:0;transform:translateY(18px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+  .js .rv.in{opacity:1;transform:none}
+
+  @media (max-width:900px){
+    .head2{grid-template-columns:1fr;gap:16px}
+    .rank{grid-template-columns:1fr}
+    .filmgrid{grid-template-columns:1fr}
+    .side{grid-template-columns:1fr 1fr}
+    .nums{grid-template-columns:repeat(2,1fr);gap:40px 24px;align-items:start}
+    .nums div:first-child{grid-column:1 / -1}
+    .isteps>li{grid-template-columns:1fr}
+  }
+  @media (max-width:720px){
+    :root{--pad:16px}
+    .top nav .gh{display:none}
+    .hero{padding-top:56px}
+    .app{max-height:540px}
+    section.wrap#film{padding-top:88px}
+    .hero .row{flex-direction:column;align-items:flex-start;gap:24px;margin-top:20px}
+    .hero .lead{font-size:16px}
+    .stage{margin-top:40px}
+    .hero .ctas{gap:20px}
+    .app-bar{padding:12px 14px}
+    .app-head{padding:14px 16px 0}
+    .tabs{padding:12px 10px}
+    .tabs .x{display:none}
+    .tabs button{min-height:44px}
+    .top .btn{min-height:44px}
+    .search{margin:0 16px 4px}
+    .list{padding:2px 16px 90px}
+    .job{grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:10px 0}
+    .job b{grid-column:1;font-size:13.5px}
+    .job .hit{grid-column:2;grid-row:1}
+    .job .role{grid-column:1 / -1;font-size:13.5px}
+    .job .loc{display:none}
+    .job::before{left:-16px}
+    section.wrap{padding-top:112px}
+    .side{grid-template-columns:1fr}
+    .cells{grid-template-columns:1fr}
+    .cell,.cell:nth-child(4),.cell:nth-child(5){grid-column:auto;padding:28px 0;border-left:0}
+    .cell+.cell{padding-left:0;border-left:0}
+    .files li{grid-template-columns:1fr;gap:6px}
+    .isteps>li{padding:20px}
+    .iwhy{padding:20px}
+    .play i{width:68px;height:48px;border-radius:12px;margin-top:56px}.play i svg{width:22px;height:22px}.play span{left:14px;bottom:12px;font-size:14px}.play small{right:10px;bottom:10px}
+    footer{margin-top:100px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .js .rv{opacity:1;transform:none;transition:none}
+    .job,.job b,.job .role,.job .hit,.job::before{transition:none}
+    .app.sweeping .scope::after{animation:none}
+  }
 </style>
 </head>
 <body>
-<header class="top"><a href="https://nachosanbenito.com/#work"><span aria-hidden="true">←</span> nachosanbenito.com</a><a class="btn main" href="#get">Download</a></header>
-<main class="wrap">
-  <div class="radar" aria-hidden="true"></div>
-  <div class="video"><video src="radar-promo.mp4" poster="poster.jpg" controls playsinline preload="metadata"></video></div>
+<header class="top" id="top">
+  <div class="wrap">
+    <a href="https://nachosanbenito.com/#work"><span aria-hidden="true">←</span> nachosanbenito.com</a>
+    <nav aria-label="Radar">
+      <a class="gh" href="https://github.com/nachoie123/radar">GitHub</a>
+      <a class="btn" href="#install">Download</a>
+    </nav>
+  </div>
+</header>
 
-  <section class="intro">
-    <div class="brand">Radar</div>
-    <h1>One list for every internship <span>opening.</span></h1>
-    <p class="lead">Radar reads the job boards companies already publish, keeps everything in a SQLite file on your disk, and ranks it against your CV. No account, no cloud, no API key.</p>
-    <div class="cta" id="get">
-      <a class="btn main" href="https://github.com/nachoie123/radar/releases/latest/download/Radar.dmg">⬇ Download for Mac</a>
+<main>
+  <div class="hero wrap">
+    <h1>One list for every internship opening.</h1>
+    <div class="row">
+      <p class="lead">Radar reads the job boards companies already publish and ranks every opening against your CV. <b>On your own disk, no API key.</b></p>
+      <div class="ctas">
+        <a class="btn" href="https://github.com/nachoie123/radar/releases/latest/download/Radar.dmg">Download for Mac</a>
+        <a class="link" href="https://github.com/nachoie123/radar">Source on GitHub <span aria-hidden="true">→</span></a>
+      </div>
     </div>
-    <p class="small">Free &amp; open source · Apple Silicon and Intel · 20 MB · macOS 11+ · runs on your own computer · interface in Spanish · <a href="https://github.com/nachoie123/radar">Source on GitHub</a> · <a href="#install">How to install</a></p>
+
+    <figure class="stage" id="stage">
+      <div class="app" id="app" role="group" aria-label="Radar's offer list. A scan line moves up the list and highlights the openings that match the CV, then the Para ti tab puts them first.">
+        <div class="app-bar" aria-hidden="true"><span class="url">localhost:8000</span></div>
+        <div class="app-head"><span class="wm">Radar</span><span class="scope" aria-hidden="true"></span><span class="count" id="count">14 openings</span></div>
+        <div class="tabs">
+          <span class="x">Hoy</span><span class="x">Empresas</span>
+          <button type="button" data-v="all" aria-pressed="true">Ofertas</button>
+          <button type="button" data-v="mine" aria-pressed="false">Para ti <span class="n" id="n">7</span></button>
+          <span class="x">Spring weeks</span><span class="x">Mi CV</span>
+        </div>
+        <div class="search" aria-hidden="true">quant finance madrid, software berlín, beca…</div>
+        <div class="list" id="list">
+          <div class="beam" id="beam" aria-hidden="true"></div>
+          <div class="job"><b>EY</b><span class="role">Intern - VAT, Customs (Indirect Tax) Advisory &amp; Transformation<span class="loc">Geneva</span></span><span class="hit"></span></div>
+          <div class="job lit" data-hit="ai llm"><b>Microsoft</b><span class="role">Software Engineer Intern, AI/ML &amp; LLM<span class="loc">Redmond, WA</span></span><span class="hit"><i>ai</i><i>llm</i></span></div>
+          <div class="job"><b>Oliver Wyman</b><span class="role">Beca RRHH<span class="loc">Madrid</span></span><span class="hit"></span></div>
+          <div class="job lit"><b>Databricks</b><span class="role">Software Engineering Intern (2027 Start)<span class="loc">Berlin</span></span><span class="hit"><i>engineering</i></span></div>
+          <div class="job"><b>Ardian</b><span class="role">Private Equity Buyout Stage - Mars 2027<span class="loc">Paris</span></span><span class="hit"></span></div>
+          <div class="job lit"><b>Celonis</b><span class="role">Intern Applied AI Engineering / Strategic Consulting (CoE Tiger Team)<span class="loc">Madrid</span></span><span class="hit"><i>ai</i><i>engineering</i></span></div>
+          <div class="job"><b>PwC</b><span class="role">Tax &amp; Legal - Beca TRS Madrid 2026<span class="loc">Madrid</span></span><span class="hit"></span></div>
+          <div class="job lit"><b>JP Morgan</b><span class="role">2027 Data &amp; AI - Summer Internship<span class="loc">London</span></span><span class="hit"><i>ai</i></span></div>
+          <div class="job"><b>Pai Partners</b><span class="role">ESG internship, 6 months, starting January 2027<span class="loc">Paris</span></span><span class="hit"></span></div>
+          <div class="job lit"><b>BlaBlaCar</b><span class="role">Strategy &amp; Business Analyst Intern<span class="loc">Paris</span></span><span class="hit"><i>business</i></span></div>
+          <div class="job"><b>KPMG</b><span class="role">Tech Program - Becario/a de IT Asset Management (ITAM)<span class="loc">Madrid</span></span><span class="hit"></span></div>
+          <div class="job lit"><b>Deutsche Bank</b><span class="role">Export Finance Paris Intern (f/m/x)<span class="loc">Paris</span></span><span class="hit"><i>finance</i></span></div>
+          <div class="job"><b>Nestlé</b><span class="role">Praktikum Trade Marketing (m/w/d)<span class="loc">Frankfurt</span></span><span class="hit"></span></div>
+          <div class="job lit"><b>Doctolib</b><span class="role">Stage - SEO : Contenu &amp; recherche IA (x/f/m)<span class="loc">Paris</span></span><span class="hit"><i>ia</i></span></div>
+        </div>
+      </div>
+      <figcaption>Real rows from the author's catalogue, 5 October 2026. The words next to each match are the ones the app shows.</figcaption>
+    </figure>
+  </div>
+
+  <section id="film" class="wrap">
+    <div class="rv filmgrid">
+      <div><h2 class="h2">The whole thing in 40 seconds.</h2>
+      <p class="sub">Radar filling its catalogue, ranking it against a CV and opening a posting. It has sound.</p></div>
+      <figure class="promo">
+        <video src="radar-promo.mp4" poster="media/promo.jpg" width="1920" height="1080" controls playsinline preload="none" aria-label="Radar promo film, 40 seconds, with sound"></video>
+        <button class="play" type="button" aria-label="Watch the film, sound on (0:40)"><i aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5Z"/></svg></i><span>Watch the film, sound on</span><small>0:40</small></button>
+      </figure>
+    </div>
   </section>
 
-  <h2>Why it exists</h2>
-  <div class="card note">
-    <p style="margin:0">Internship listings live in a hundred career pages, each showing a different slice. Newsletters throw the data away after sending it. There was no single list, no memory of what you had already seen, and no way to ask <i>which of these actually match my CV?</i> Radar is that list, kept on your own disk.</p>
-  </div>
-
-  <h2>What it does</h2>
-  <div class="grid">
-    <div class="card"><b>Fills itself</b><p>Walks 89 company boards on public ATS APIs (Greenhouse, Lever, Ashby, Workday, SmartRecruiters and more) plus community GitHub boards. A first run takes about five minutes; after that it refreshes itself when you open it (or nightly, if you run it from source).</p></div>
-    <div class="card"><b>Ranks against your CV</b><p>SQLite FTS5 and <code>bm25()</code>. No model, no tokens, no network. Paste your CV once and the <i>Para ti</i> ("For you") tab is ordered by match, showing the terms that hit.</p></div>
-    <div class="card"><b>Reads the posting for you</b><p><code>descr.py</code> fetches the actual job description so you can judge a role without leaving the app. Postings that can't be read say why.</p></div>
-    <div class="card"><b>Europe first, by your rules</b><p>Filters by graduation year, summer-only, degree level and region (<code>es</code>, <code>uk</code>, <code>de</code>, <code>benelux</code>, <code>us</code>…), all set in one config file.</p></div>
-    <div class="card"><b>Tells you what's new</b><p>Shows what came in since your last visit and flags openings the source stopped confirming, instead of letting them rot in the list.</p></div>
-    <div class="card"><b>Prepares the application</b><p>One button builds a prompt with the posting and your CV inside. You paste it into any assistant; it tells you what to leave as <code>[COMPLETAR]</code> rather than invent.</p></div>
-  </div>
-
-  <h2>Real numbers from the author's database</h2>
-  <div class="stats stats4">
-    <div class="card stat"><b>1,017</b><span>internship openings</span></div>
-    <div class="card stat"><b>111</b><span>companies</span></div>
-    <div class="card stat"><b>746</b><span>with the full posting text (73%)</span></div>
-    <div class="card stat"><b>0</b><span>accounts, API keys or pip installs</span></div>
-  </div>
-  <p class="small">Snapshot of the author's local catalogue, last refreshed 22 September 2026.</p>
-
-  <h2>What it looks like</h2>
-  <div class="shots">
-    <figure><img src="empresas-demo.jpg" alt="The Empresas tab: companies with their number of open internships" loading="lazy"><figcaption>Companies, by number of open internships.</figcaption></figure>
-    <figure><img src="parati-demo.jpg" alt="The Para ti tab: openings ranked by match with the CV" loading="lazy"><figcaption>"For you": ranked by how well each opening matches the CV.</figcaption></figure>
-  </div>
-
-  <h2>How it is put together</h2>
-  <ol class="steps">
-    <li class="card"><b>ingesta.py</b> walks the boards and writes through <code>db.upsert()</code>, nothing else. All standard library.</li>
-    <li class="card"><b>db.py + jobs.db</b>: every SQL statement in the project lives in one file; FTS5 lives inside <code>search()</code>.</li>
-    <li class="card"><b>app.py + index.html</b>: a Python <code>ThreadingHTTPServer</code> on <code>127.0.0.1</code> and one HTML file. Nothing is ever exposed to your network.</li>
-  </ol>
-
-  <section class="install" id="install">
-  <h2>Install on your Mac</h2>
-  <p class="isub">About a minute. Step 3 happens only the first time.</p>
-  <ol class="isteps">
-    <li>
-      <div><b class="t">Drag it into Applications</b><p>Open <b>Radar.dmg</b> and drag <b>Radar</b> onto the <b>Applications</b> folder.</p></div>
-      <div class="iart" aria-hidden="true"><div class="iwin idrag"><div><img class="iicon" src="icon.png" alt=""><span>Radar</span></div><div class="arr"></div><div><div class="ifold"></div><span>Applications</span></div></div></div>
-    </li>
-    <li>
-      <div><b class="t">Open it. macOS stops it. Click Done.</b><p>macOS says Apple could not verify “Radar” is free of malware. It says that about every app that isn't notarized by Apple. Click <b>Done</b>, not Move to Trash.</p></div>
-      <div class="iart" aria-hidden="true"><div class="iwin idlg"><img class="iicon" src="icon.png" alt=""><h4>“Radar” Not Opened</h4><p>Apple could not verify “Radar” is free of malware that may harm your Mac or compromise your privacy.</p><span class="ibtn on">Done</span><span class="ibtn">Move to Trash</span></div></div>
-    </li>
-    <li>
-      <div><b class="t">Open Anyway, once</b><p>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to <b>Security</b> and click <b>Open Anyway</b> next to “Radar” was blocked. Confirm with your password or Touch ID. From then on it opens with a double-click.</p></div>
-      <div class="iart" aria-hidden="true"><div class="iwin iset"><div class="ihead">Privacy &amp; Security</div><div class="ilbl">Security</div><div class="irow"><span>“Radar” was blocked to protect your Mac.</span><span class="ibtn on">Open Anyway</span></div></div></div>
-    </li>
-  <li class="noart"><div><b class="t">Then: let it fill, paste your CV</b><p>The first time it reads every board (about 5 minutes, with a progress bar). Then paste your CV in <b>Mi CV</b> and open <b>Para ti</b>. It refreshes by itself when you open it.</p></div></li>
-  </ol>
-  <div class="iwhy">
-    <p><b>Why the warning?</b> Notarizing an app needs a paid Apple developer account ($99 a year). This is a free side project, so it isn't notarized. The full source code is on GitHub, and you can check that your download is exactly the file I built. In Terminal:</p>
-    <pre>shasum -a 256 ~/Downloads/Radar.dmg</pre><p>should print <code>8a5e582dc6603458bd5d41c67ef7482c263bc6d74919ddb61fc8bd928e158dfb</code></p>
-    <details><summary>Prefer the Terminal for step 3?</summary><pre>xattr -dr com.apple.quarantine "/Applications/Radar.app"</pre></details>
-  </div>
+  <section class="wrap" id="why">
+    <p class="state rv">Internship listings live in a hundred career pages, each showing a different slice. <span class="g">Newsletters throw the data away after sending it. Radar keeps one list on your own disk, and tells you which openings match your CV.</span></p>
   </section>
 
-  <h2 id="run">Or run it from source</h2>
-  <div class="card note">
-    <p style="margin:0"><b>There is no hosted demo, on purpose.</b> Radar holds your CV and your applications, so it runs on your machine at <code>http://localhost:8000</code> instead of on somebody's server. You need Python 3.9+ with SQLite FTS5, nothing else.</p>
-    <pre>git clone https://github.com/nachoie123/radar.git
+  <section class="wrap" id="parati">
+    <div class="head2 rv">
+      <h2 class="h2">Ranked against your CV. <span class="g">No model, no tokens.</span></h2>
+      <p>Paste your CV once. SQLite FTS5 and <code>bm25()</code> order the <b>Para ti</b> ("For you") tab by match and show the words that hit. Title matches come first.</p>
+    </div>
+    <div class="rank">
+      <figure class="shot rv">
+        <video data-src="media/parati.mp4" poster="media/parati.jpg" width="1040" height="650" muted loop playsinline preload="none" aria-label="Screen recording of the real app in its dark theme: the Ofertas tab, then Para ti, then one posting"></video>
+        <figcaption class="cap">The real app: Ofertas, then Para ti, then one posting with its matches.</figcaption>
+      </figure>
+      <div class="side">
+        <div class="panel rv">
+          <div class="ph"><b>db.py</b><span>search()</span></div>
+<pre class="sql" aria-label="The ranking query"><span class="k">SELECT</span> j.*,
+  bm25(jobs_fts, W_COMPANY, W_ROLE, 0.0) <span class="k">AS</span> score,
+  bm25(jobs_fts, 0.0, 0.0, 1.0)  <span class="k">AS</span> score_txt
+<span class="k">FROM</span> jobs j <span class="k">JOIN</span> jobs_fts
+  <span class="k">ON</span> jobs_fts.rowid = j.id
+<span class="k">WHERE</span> jobs_fts <span class="k">MATCH</span> :your_cv
+<span class="k">ORDER BY</span> (score = 0) <span class="k">ASC</span>,
+  score + W_TIE * score_txt</pre>
+        </div>
+        <div class="panel rv">
+          <div class="match">
+            <div><h3>Software Engineer Intern, AI/ML &amp; LLM</h3><p class="who">Microsoft, Redmond, WA</p></div>
+            <dl>
+              <div><dt>Matches in the title</dt><dd class="t"><i>ai</i><i>llm</i></dd></div>
+              <div><dt>Matches in the posting text</dt><dd><i>prompt</i><i>user</i><i>computer</i><i>python</i><i>products</i><i>engineering</i></dd></div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap" id="rest">
+    <h2 class="h2 rv">The rest of the job. <span class="g">Done while you sleep.</span></h2>
+    <div class="cells">
+      <div class="cell rv"><h3>Fills itself</h3><p>Walks 89 company boards on public ATS APIs plus community GitHub boards. A first run takes about five minutes; after that it refreshes when you open it, or nightly from source.</p><div class="tags"><i>Greenhouse</i><i>Lever</i><i>Ashby</i><i>Workday</i><i>SmartRecruiters</i></div></div>
+      <div class="cell rv"><h3>Reads the posting for you</h3><p><code>descr.py</code> fetches the actual job description, so you can judge a role without leaving the app. Postings that can't be read say why.</p><div class="tags"><i class="a">Texto leído de la fuente</i></div></div>
+      <div class="cell rv"><h3>Europe first, by your rules</h3><p>Filters by graduation year, summer-only, degree level and region, all set in one config file.</p><div class="tags"><i>es</i><i>uk</i><i>de</i><i>benelux</i><i>us</i></div></div>
+      <div class="cell rv"><h3>Tells you what's new</h3><p>Shows what came in since your last visit and flags openings the source stopped confirming, instead of letting them rot in the list.</p><div class="tags"><i class="w">sin refrescar 34d</i></div></div>
+      <div class="cell rv"><h3>Prepares the application</h3><p>One button builds a prompt with the posting and your CV inside. You paste it into any assistant; it marks what to fill in by hand rather than invent it.</p><div class="tags"><i>[COMPLETAR]</i></div></div>
+    </div>
+  </section>
+
+  <section class="wrap" id="numbers">
+    <h2 class="h2 rv">From the author's own catalogue.</h2>
+    <div class="nums rv">
+      <div><b data-n="1017">1,017</b><span>internship openings</span></div>
+      <div><b data-n="111">111</b><span>companies</span></div>
+      <div><b data-n="746">746</b><span>with the full posting text (73%)</span></div>
+      <div><b>0</b><span>accounts, API keys or pip installs</span></div>
+    </div>
+    <p class="cap rv">Snapshot of the local database on 22 September 2026, the same one the film shows.</p>
+  </section>
+
+  <section class="wrap" id="built">
+    <h2 class="h2 rv">Three files and a database. <span class="g">All standard library.</span></h2>
+    <ol class="files rv">
+      <li><code>ingesta.py</code><p>Walks the boards and writes through <code>db.upsert()</code>, nothing else.</p></li>
+      <li><code>db.py <em>+</em> jobs.db</code><p>Every SQL statement in the project lives in one file, and FTS5 lives inside <code>search()</code>.</p></li>
+      <li><code>app.py <em>+</em> index.html</code><p>A Python <code>ThreadingHTTPServer</code> on <code>127.0.0.1</code> and one HTML file. Nothing is ever exposed to your network.</p></li>
+    </ol>
+  </section>
+
+  <section class="wrap" id="install">
+    <div class="rv">
+      <h2 class="h2">Install on your Mac. <span class="g">About a minute.</span></h2>
+      <p class="sub">The third step happens only the first time.</p>
+      <div class="ctas2">
+        <a class="btn" href="https://github.com/nachoie123/radar/releases/latest/download/Radar.dmg">Download for Mac</a>
+        <a class="link" href="#run">Or run it from source <span aria-hidden="true">→</span></a>
+      </div>
+      <p class="meta">Free and open source. Apple Silicon and Intel, 20 MB, macOS 11 or later. The interface is in Spanish.</p>
+    </div>
+    <ol class="isteps">
+      <li class="rv">
+        <div><b class="t">Drag it into Applications</b><p>Open <b>Radar.dmg</b> and drag <b>Radar</b> onto the <b>Applications</b> folder.</p></div>
+        <div class="iart" aria-hidden="true"><div class="iwin idrag"><div><img class="iicon" src="icon.png" alt=""><span>Radar</span></div><div class="arr"></div><div><div class="ifold"></div><span>Applications</span></div></div></div>
+      </li>
+      <li class="rv">
+        <div><b class="t">Open it. macOS stops it. Click Done.</b><p>macOS says Apple could not verify “Radar” is free of malware. It says that about every app that isn't notarized by Apple. Click <b>Done</b>, not Move to Trash.</p></div>
+        <div class="iart" aria-hidden="true"><div class="iwin idlg"><img class="iicon" src="icon.png" alt=""><h4>“Radar” Not Opened</h4><p>Apple could not verify “Radar” is free of malware that may harm your Mac or compromise your privacy.</p><span class="ibtn on">Done</span><span class="ibtn">Move to Trash</span></div></div>
+      </li>
+      <li class="rv">
+        <div><b class="t">Open Anyway, once</b><p>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to <b>Security</b> and click <b>Open Anyway</b> next to “Radar” was blocked. Confirm with your password or Touch ID. From then on it opens with a double-click.</p></div>
+        <div class="iart" aria-hidden="true"><div class="iwin iset"><div class="ihead">Privacy &amp; Security</div><div class="ilbl">Security</div><div class="irow"><span>“Radar” was blocked to protect your Mac.</span><span class="ibtn on">Open Anyway</span></div></div></div>
+      </li>
+      <li class="noart rv"><div><b class="t">Then let it fill, and paste your CV</b><p>The first time it reads every board (about 5 minutes, with a progress bar). Then paste your CV in <b>Mi CV</b> and open <b>Para ti</b>. It refreshes by itself when you open it.</p></div></li>
+    </ol>
+    <div class="iwhy rv">
+      <p><b>Why the warning?</b> Notarizing an app needs a paid Apple developer account ($99 a year). This is a free side project, so it isn't notarized. The full source code is on GitHub, and you can check that your download is exactly the file I built. In Terminal:</p>
+      <pre>shasum -a 256 ~/Downloads/Radar.dmg</pre><p>should print <code>8a5e582dc6603458bd5d41c67ef7482c263bc6d74919ddb61fc8bd928e158dfb</code></p>
+      <details><summary>Prefer the Terminal for step 3?</summary><pre>xattr -dr com.apple.quarantine "/Applications/Radar.app"</pre></details>
+    </div>
+  </section>
+
+  <section class="wrap" id="run">
+    <h2 class="h2 rv">Or run it from source.</h2>
+    <div class="src rv">
+      <p><b>There is no hosted demo, on purpose.</b> Radar holds your CV and your applications, so it runs on your machine at <code>http://localhost:8000</code> instead of on somebody's server. You need Python 3.9+ with SQLite FTS5, nothing else.</p>
+<pre>git clone https://github.com/nachoie123/radar.git
 cd radar
 chmod +x instalar.command Radar.command
 ./instalar.command      # macOS: sets up the nightly agents and opens the app
@@ -218,9 +465,107 @@ chmod +x instalar.command Radar.command
 # Linux / Windows
 python3 ingesta.py      # fills the catalogue (~5 min the first time)
 python3 app.py          # serves http://localhost:8000</pre>
-  </div>
-
-  <footer>Built by <a href="https://www.linkedin.com/in/nacho-san-benito/">Ignacio San Benito</a> · <a href="https://github.com/nachoie123/radar">GitHub</a></footer>
+    </div>
+  </section>
 </main>
+
+<footer>
+  <div class="wrap"><span><a href="https://nachosanbenito.com">Ignacio San Benito</a> · IE University</span><a href="https://github.com/nachoie123/radar">Source on GitHub</a></div>
+</footer>
+
+<script>
+(() => {
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  const $ = s => document.querySelector(s);
+
+  /* top bar hairline once you leave the top */
+  const top = $('#top');
+  const onScroll = () => top.classList.toggle('edge', scrollY > 8);
+  addEventListener('scroll', onScroll, {passive: true}); onScroll();
+
+  /* reveal */
+  const rv = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); rv.unobserve(e.target) } }), {rootMargin: '0px 0px -10% 0px'});
+  document.querySelectorAll('.rv').forEach(el => rv.observe(el));
+
+  /* the film: never autoplays; the button starts it with sound, then native controls take over */
+  const film = $('#film video'), pb = $('#film .play');
+  film.controls = false;
+  pb.addEventListener('click', () => { film.preload = 'auto'; film.play().catch(() => { film.controls = true; pb.remove() }) });
+  film.addEventListener('play', () => { film.controls = true; pb.remove() }, {once: true});
+
+  /* screen recording: load when near, play only while on screen; reduced motion = poster + controls */
+  const rec = $('#parati video');
+  new IntersectionObserver((es, o) => es.forEach(e => { if (e.isIntersecting) { rec.src = rec.dataset.src; rec.preload = 'auto'; o.disconnect() } }), {rootMargin: '150% 0px'}).observe(rec);
+  if (still.matches) rec.controls = true;
+  new IntersectionObserver(es => es.forEach(e => { if (still.matches) return; e.intersectionRatio > .35 ? rec.play().catch(() => {}) : rec.pause() }), {threshold: [0, .35]}).observe(rec);
+
+  /* the object: the scan line goes up the list, lights the rows that match, then Para ti puts them first */
+  const app = $('#app'), list = $('#list'), beam = $('#beam'), count = $('#count'), n = $('#n');
+  const rows = [...list.querySelectorAll('.job')];
+  const match = rows.filter(r => r.classList.contains('lit'));
+  const btns = [...app.querySelectorAll('.tabs button')];
+  let view = 'all', raf = 0, timers = [], auto = !still.matches, onScreen = false, running = false;
+
+  const press = v => btns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+  const order = v => v === 'mine' ? [...match, ...rows.filter(r => !match.includes(r))] : rows;
+  function arrange(v, animate) {                      // FLIP: measure, reorder, play the difference
+    const before = new Map(rows.map(r => [r, r.getBoundingClientRect().top]));
+    order(v).forEach(r => list.appendChild(r));
+    app.classList.toggle('mine', v === 'mine');
+    count.textContent = v === 'mine' ? `${match.length} match your CV` : '14 openings';
+    view = v; press(v);
+    if (!animate) return;
+    rows.forEach(r => {
+      const d = before.get(r) - r.getBoundingClientRect().top;
+      if (d) r.animate([{transform: `translateY(${d}px)`}, {transform: 'none'}], {duration: 700, easing: 'cubic-bezier(.22,.8,.24,1)'});
+    });
+  }
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+  function stop() { cancelAnimationFrame(raf); timers.forEach(clearTimeout); timers = []; running = false; app.classList.remove('sweeping'); beam.style.opacity = 0 }
+
+  function sweep() {
+    running = true;
+    arrange('all', true);
+    rows.forEach(r => r.classList.remove('lit'));
+    let k = 0; n.textContent = 0;
+    const H = Math.min(list.clientHeight, app.clientHeight - list.offsetTop) - 70, dur = 3000; let t0;
+    const centers = rows.map(r => r.offsetTop + r.offsetHeight / 2);
+    app.classList.add('sweeping'); beam.style.opacity = 1;
+    const step = t => {
+      t0 ??= t;
+      const p = Math.min(1, (t - t0) / dur), y = H * (1 - p);
+      beam.style.transform = `translateY(${y}px)`;
+      rows.forEach((r, i) => {
+        if (match.includes(r) && !r.classList.contains('lit') && y <= centers[i]) {
+          r.classList.add('lit', 'ping'); n.textContent = ++k;
+          later(() => r.classList.remove('ping'), 950);
+        }
+      });
+      if (p < 1) raf = requestAnimationFrame(step);
+      else {
+        beam.animate([{opacity: 1}, {opacity: 0}], {duration: 400, fill: 'forwards'});
+        app.classList.remove('sweeping');
+        later(() => arrange('mine', true), 700);
+        later(() => onScreen && auto ? sweep() : (running = false), 5200);
+      }
+    };
+    raf = requestAnimationFrame(step);
+  }
+
+  btns.forEach(b => b.addEventListener('click', () => {
+    auto = false; stop();
+    match.forEach(r => r.classList.add('lit')); n.textContent = match.length;
+    arrange(b.dataset.v, !still.matches);
+  }));
+
+  if (auto) {
+    new IntersectionObserver(es => es.forEach(e => {
+      onScreen = e.isIntersecting;
+      if (onScreen && auto && !running) sweep();
+    }), {threshold: .25}).observe(app);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else if (onScreen && auto && !running) sweep() });
+  }
+})();
+</script>
 </body>
 </html>
