@@ -447,7 +447,7 @@
       <li class="noart rv"><div><b class="t">Then let it fill, and paste your CV</b><p>The first time it reads every board (about 5 minutes, with a progress bar). Then paste your CV in <b>Mi CV</b> and open <b>Para ti</b>. It refreshes by itself when you open it.</p></div></li>
     </ol>
     <div class="iwhy rv">
-      <p><b>Why the warning?</b> Notarizing an app needs a paid Apple developer account ($99 a year). This is a free side project, so it isn't notarized. The full source code is on GitHub, and you can check that your download is exactly the file I built. In Terminal:</p>
+      <p><b>Why the warning?</b> This build isn't notarized by Apple yet, so macOS asks you to confirm the first time. The full source code is on GitHub, and you can check that your download is exactly the file I built. In Terminal:</p>
       <pre>shasum -a 256 ~/Downloads/Radar.dmg</pre><p>should print <code>8a5e582dc6603458bd5d41c67ef7482c263bc6d74919ddb61fc8bd928e158dfb</code></p>
       <details><summary>Prefer the Terminal for step 3?</summary><pre>xattr -dr com.apple.quarantine "/Applications/Radar.app"</pre></details>
     </div>
