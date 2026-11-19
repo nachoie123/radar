@@ -1,6 +1,6 @@
 # Chequeo de seguridad de Radar.app
 
-Generado por `tools/seguridad.py` el 2026-10-03 19:50 sobre `dist/Radar.app`.
+Generado por `tools/seguridad.py` el 2026-11-19 10:13 sobre `dist/Radar.app`.
 Todo lo de abajo es salida real de este script, no texto escrito a mano.
 
 | Prueba | Resultado |
@@ -62,7 +62,7 @@ Arranca sin ventana con HOME falso, carpeta de trabajo vacía y RADAR_DATA tempo
 ```
 {
  "exit": 0,
- "secs": 1.9,
+ "secs": 7.1,
  "raiz": {
   "status": 200,
   "html": true
@@ -88,7 +88,7 @@ Arranca sin ventana con HOME falso, carpeta de trabajo vacía y RADAR_DATA tempo
    {
     "empresa": "Cabify",
     "ok": true,
-    "ofertas": 5,
+    "ofertas": 1,
     "error": ""
    },
    {
@@ -98,13 +98,13 @@ Arranca sin ventana con HOME falso, carpeta de trabajo vacía y RADAR_DATA tempo
     "error": ""
    }
   ],
-  "nuevas": 5,
-  "total": 43
+  "nuevas": 1,
+  "total": 39
  },
  "sin_red": false,
  "cv_post": 200,
  "para_ti": {
-  "n": 7,
+  "n": 6,
   "primera": "Python Data Analyst Intern · Madrid",
   "casa_en": [
    "python",
@@ -114,10 +114,11 @@ Arranca sin ventana con HOME falso, carpeta de trabajo vacía y RADAR_DATA tempo
  },
  "busqueda": 1,
  "descr_hilo": {
-  "con": 2,
-  "sin": 0,
+  "con": 1,
+  "sin": 1,
   "por": {
-   "greenhouse": 2
+   "greenhouse": 1,
+   "json-ld": 1
   }
  },
  "ficheros": [

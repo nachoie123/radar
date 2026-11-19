@@ -62,13 +62,13 @@ chmod +x *.command          # first time only
 ./instalar.command
 ```
 
-**macOS app** — `./build.sh && tools/dmg.sh` builds `dist/Radar.dmg`: a
+**macOS app** — download `Radar.pkg` from Releases (signed and notarized by
+Apple: double-click, Install, it opens by itself). `./build.sh` builds `dist/Radar.app`: a
 universal (Apple Silicon + Intel) Radar.app with its own window. No launchd and
 no Python needed: the first launch fills the catalogue in the background (about
 five minutes, with a progress bar), and later launches refresh it when the last
 pass is more than 12 hours old. Its data lives in
-`~/Library/Application Support/Radar/`. The app is not notarized, so macOS asks
-once (System Settings › Privacy & Security › Open Anyway).
+`~/Library/Application Support/Radar/`.
 `tools/seguridad.py` checks every build and writes `tools/seguridad.md`.
 
 **Linux / Windows** — no launchd, so the two commands are yours to schedule:

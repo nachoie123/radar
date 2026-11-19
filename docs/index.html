@@ -302,7 +302,7 @@
     <div class="row">
       <p class="lead">Radar reads the job boards companies already publish and ranks every opening against your CV. <b>On your own disk, no API key.</b></p>
       <div class="ctas">
-        <a class="btn" href="https://github.com/nachoie123/radar/releases/latest/download/Radar.dmg">Download for Mac</a>
+        <a class="btn" href="https://github.com/nachoie123/radar/releases/latest/download/Radar.pkg">Download for Mac</a>
         <a class="link" href="https://github.com/nachoie123/radar">Source on GitHub <span aria-hidden="true">→</span></a>
       </div>
     </div>
@@ -424,33 +424,17 @@
   <section class="wrap" id="install">
     <div class="rv">
       <h2 class="h2">Install on your Mac. <span class="g">About a minute.</span></h2>
-      <p class="sub">The third step happens only the first time.</p>
+      <p class="sub">Signed and notarized by Apple: it opens with a double-click, no warnings.</p>
       <div class="ctas2">
-        <a class="btn" href="https://github.com/nachoie123/radar/releases/latest/download/Radar.dmg">Download for Mac</a>
+        <a class="btn" href="https://github.com/nachoie123/radar/releases/latest/download/Radar.pkg">Download for Mac</a>
         <a class="link" href="#run">Or run it from source <span aria-hidden="true">→</span></a>
       </div>
       <p class="meta">Free and open source. Apple Silicon and Intel, 20 MB, macOS 11 or later. The interface is in Spanish.</p>
     </div>
     <ol class="isteps">
-      <li class="rv">
-        <div><b class="t">Drag it into Applications</b><p>Open <b>Radar.dmg</b> and drag <b>Radar</b> onto the <b>Applications</b> folder.</p></div>
-        <div class="iart" aria-hidden="true"><div class="iwin idrag"><div><img class="iicon" src="icon.png" alt=""><span>Radar</span></div><div class="arr"></div><div><div class="ifold"></div><span>Applications</span></div></div></div>
-      </li>
-      <li class="rv">
-        <div><b class="t">Open it. macOS stops it. Click Done.</b><p>macOS says Apple could not verify “Radar” is free of malware. It says that about every app that isn't notarized by Apple. Click <b>Done</b>, not Move to Trash.</p></div>
-        <div class="iart" aria-hidden="true"><div class="iwin idlg"><img class="iicon" src="icon.png" alt=""><h4>“Radar” Not Opened</h4><p>Apple could not verify “Radar” is free of malware that may harm your Mac or compromise your privacy.</p><span class="ibtn on">Done</span><span class="ibtn">Move to Trash</span></div></div>
-      </li>
-      <li class="rv">
-        <div><b class="t">Open Anyway, once</b><p>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to <b>Security</b> and click <b>Open Anyway</b> next to “Radar” was blocked. Confirm with your password or Touch ID. From then on it opens with a double-click.</p></div>
-        <div class="iart" aria-hidden="true"><div class="iwin iset"><div class="ihead">Privacy &amp; Security</div><div class="ilbl">Security</div><div class="irow"><span>“Radar” was blocked to protect your Mac.</span><span class="ibtn on">Open Anyway</span></div></div></div>
-      </li>
+      <li class="noart rv"><div><b class="t">Open Radar.pkg and click Install</b><p>It goes into Applications and opens by itself. If macOS asks whether Radar may find devices on your local network, either answer works: Radar only talks to the job boards and to itself.</p></div></li>
       <li class="noart rv"><div><b class="t">Then let it fill, and paste your CV</b><p>The first time it reads every board (about 5 minutes, with a progress bar). Then paste your CV in <b>Mi CV</b> and open <b>Para ti</b>. It refreshes by itself when you open it.</p></div></li>
     </ol>
-    <div class="iwhy rv">
-      <p><b>Why the warning?</b> This build isn't notarized by Apple yet, so macOS asks you to confirm the first time. The full source code is on GitHub, and you can check that your download is exactly the file I built. In Terminal:</p>
-      <pre>shasum -a 256 ~/Downloads/Radar.dmg</pre><p>should print <code>8a5e582dc6603458bd5d41c67ef7482c263bc6d74919ddb61fc8bd928e158dfb</code></p>
-      <details><summary>Prefer the Terminal for step 3?</summary><pre>xattr -dr com.apple.quarantine "/Applications/Radar.app"</pre></details>
-    </div>
   </section>
 
   <section class="wrap" id="run">
