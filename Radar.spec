@@ -23,5 +23,5 @@ exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='Radar', debug=False,
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, upx_exclude=[], name='Radar')
 app = BUNDLE(coll, name='Radar.app', icon='build/icon.icns',
              bundle_identifier='com.nachosanbenito.radar',
-             info_plist={'CFBundleShortVersionString': '0.1.0', 'NSHighResolutionCapable': True,
+             info_plist={'CFBundleShortVersionString': '1.1', 'NSHighResolutionCapable': True,
                          'LSMinimumSystemVersion': '11.0', 'NSHumanReadableCopyright': 'Radar · MIT'})
