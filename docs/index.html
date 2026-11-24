@@ -11,6 +11,7 @@
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#08090a">
 <meta name="color-scheme" content="dark">
+<link rel="canonical" href="https://nachosanbenito.com/radar/">
 <link rel="icon" href="icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -393,7 +394,7 @@
   <section class="wrap" id="rest">
     <h2 class="h2 rv">The rest of the job. <span class="g">Done while you sleep.</span></h2>
     <div class="cells">
-      <div class="cell rv"><h3>Fills itself</h3><p>Walks 89 company boards on public ATS APIs plus community GitHub boards. A first run takes about five minutes; after that it refreshes when you open it, or nightly from source.</p><div class="tags"><i>Greenhouse</i><i>Lever</i><i>Ashby</i><i>Workday</i><i>SmartRecruiters</i></div></div>
+      <div class="cell rv"><h3>Fills itself</h3><p>Walks 89 company boards on public ATS APIs plus a community GitHub board. A first run takes about five minutes; after that it refreshes when you open it, or nightly from source.</p><div class="tags"><i>Greenhouse</i><i>Lever</i><i>Ashby</i><i>Workday</i><i>SmartRecruiters</i></div></div>
       <div class="cell rv"><h3>Reads the posting for you</h3><p><code>descr.py</code> fetches the actual job description, so you can judge a role without leaving the app. Postings that can't be read say why.</p><div class="tags"><i class="a">Texto leído de la fuente</i></div></div>
       <div class="cell rv"><h3>Europe first, by your rules</h3><p>Filters by graduation year, summer-only, degree level and region, all set in one config file.</p><div class="tags"><i>es</i><i>uk</i><i>de</i><i>benelux</i><i>us</i></div></div>
       <div class="cell rv"><h3>Tells you what's new</h3><p>Shows what came in since your last visit and flags openings the source stopped confirming, instead of letting them rot in the list.</p><div class="tags"><i class="w">sin refrescar 34d</i></div></div>
@@ -413,11 +414,11 @@
   </section>
 
   <section class="wrap" id="built">
-    <h2 class="h2 rv">Three files and a database. <span class="g">All standard library.</span></h2>
+    <h2 class="h2 rv">Four files and a database. <span class="g">All standard library.</span></h2>
     <ol class="files rv">
-      <li><code>ingesta.py</code><p>Walks the boards and writes through <code>db.upsert()</code>, nothing else.</p></li>
-      <li><code>db.py <em>+</em> jobs.db</code><p>Every SQL statement in the project lives in one file, and FTS5 lives inside <code>search()</code>.</p></li>
-      <li><code>app.py <em>+</em> index.html</code><p>A Python <code>ThreadingHTTPServer</code> on <code>127.0.0.1</code> and one HTML file. Nothing is ever exposed to your network.</p></li>
+      <li><code>ingesta.py <em>+</em> descr.py</code><p>Walk the boards and read each posting. Openings only go in through <code>db.upsert()</code>.</p></li>
+      <li><code>db.py <em>+</em> jobs.db</code><p>The app's SQL lives in one file, and FTS5 lives inside <code>search()</code>.</p></li>
+      <li><code>app.py <em>+</em> index.html</code><p>A Python <code>ThreadingHTTPServer</code> on <code>127.0.0.1</code> and one HTML file. Never open to the Wi-Fi; run from source, it also answers on your own Tailscale.</p></li>
     </ol>
   </section>
 

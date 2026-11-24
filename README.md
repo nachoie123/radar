@@ -28,8 +28,8 @@ Radar is that list, kept on your own disk.
 
 ## What it does
 
-- **Fills itself.** `ingesta.py` walks 89 company boards plus the community
-  GitHub boards. First run: roughly 500 openings from 110 companies in about
+- **Fills itself.** `ingesta.py` walks 89 company boards plus a community
+  GitHub board. First run: roughly 850 openings in about
   five minutes. After that, a nightly pass at 02:30 keeps it current.
 - **Ranks against your CV** with SQLite's FTS5 and `bm25()` — no model, no
   tokens, no network. Paste your CV once and the *Para ti* ("For you") tab is
@@ -147,7 +147,7 @@ Four files, all standard library:
 |---|---|
 | `ingesta.py` | The scrapers, the filters and the source list. Writes through `db.upsert()` and nothing else. |
 | `descr.py` | Fetches the posting text, one pass a night, with its own budget and watchdog. |
-| `db.py` | Every SQL statement in the project. FTS5 lives inside `search()`. |
+| `db.py` | The app's SQL. FTS5 lives inside `search()`. |
 | `app.py` + `index.html` | A `ThreadingHTTPServer` and one HTML file. |
 
 **What the server exposes.** It listens on `127.0.0.1` always, and additionally
