@@ -12,6 +12,8 @@ everything in a SQLite file next to the code, and serves it from
 
 ![The Today tab: what came in since your last visit](docs/hoy.png)
 
+The 40-second film, with sound: [nachosanbenito.com/radar/#film](https://nachosanbenito.com/radar/#film)
+
 > The interface is in Spanish, and so are the code comments — it was built for
 > its author first. The sources and the config are not: regions go from `es` to
 > `us` and `latam`, and the filters are yours to set.
